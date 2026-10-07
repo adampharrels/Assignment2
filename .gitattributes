@@ -1,0 +1,9 @@
+* text=auto
+
+# Files left out of the submission zip built by CI (git archive).
+.github/ export-ignore
+.gitattributes export-ignore
+Assignment2_Specification.pdf export-ignore
+
+*.pdf binary
+*.png binary

@@ -1,0 +1,101 @@
+# CI: every push / PR builds and tests on Linux AND Windows with the .NET 9 SDK (same as the lab machines).
+# CD: every push to main packages the exact submission zip and proves it compiles from a clean unzip on Windows.
+#     Pushing a tag like v1.0 also attaches that zip to a GitHub Release.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-test:
+    name: Build & test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      # Runners also have newer SDKs installed; force a 9.0.x SDK so we catch anything the lab can't compile.
+      - name: Pin .NET 9 SDK
+        run: dotnet new globaljson --sdk-version 9.0.100 --roll-forward latestFeature --force
+
+      - run: dotnet --version
+      - run: dotnet restore JobTracker.sln
+      - run: dotnet build JobTracker.sln --configuration Release --no-restore
+      - run: dotnet test JobTracker.sln --configuration Release --no-build --logger trx --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: TestResults
+
+  package:
+    name: Package submission zip
+    needs: build-test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # git archive = only committed files (no bin/obj/.db). Exclusions are in .gitattributes (export-ignore).
+      - name: Build submission zip
+        run: git archive --format=zip --prefix=JobTracker/ -o JobTracker-submission.zip HEAD
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: submission-zip
+          path: JobTracker-submission.zip
+
+  verify-submission:
+    name: Verify zip compiles on Windows
+    needs: package
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: submission-zip
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Unzip into a clean folder and build (what the tutor will do)
+        shell: pwsh
+        run: |
+          Expand-Archive JobTracker-submission.zip -DestinationPath clean
+          cd clean/JobTracker
+          dotnet new globaljson --sdk-version 9.0.100 --roll-forward latestFeature --force
+          dotnet build JobTracker.sln --configuration Release
+          dotnet test JobTracker.sln --configuration Release --no-build
+
+  release:
+    name: Attach zip to GitHub Release
+    needs: verify-submission
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: submission-zip
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: JobTracker-submission.zip

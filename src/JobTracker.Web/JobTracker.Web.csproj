@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <PackageReference Include="MudBlazor" Version="8.15.0" />
+    <PackageReference Include="Blazor-ApexCharts" Version="6.1.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\JobTracker.Core\JobTracker.Core.csproj" />
+    <ProjectReference Include="..\JobTracker.Data\JobTracker.Data.csproj" />
+    <ProjectReference Include="..\JobTracker.Analytics\JobTracker.Analytics.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,19 @@
+# Build output
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+TestResults/
+publish/
+
+# Local database (recreated + seeded on first run)
+*.db
+*.db-shm
+*.db-wal
+
+# macOS
+.DS_Store
