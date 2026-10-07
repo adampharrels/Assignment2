@@ -3,6 +3,8 @@
 > **Status: draft for the kickoff meeting.** The split and the ideas below are a starting point.
 > Anyone can propose changes at kickoff, and class/file names are suggestions only.
 
+**Issues:** every slice has its own issue, all listed in [#2 Tasks & slices](https://github.com/adampharrels/Assignment2/issues/2).
+
 Each slice is a vertical piece of work (data + logic + UI + tests) owned by **one** person, in files
 that **only that person edits**. That way nobody overwrites anyone else's work, and each person can
 demo and explain their own code.
@@ -19,6 +21,8 @@ There are no entities, interfaces, pages or features yet. That's for the team to
 
 ## 1. Kickoff: agree on the contracts (whole team, decided by Wed 7 Oct)
 
+Issue: [#3](https://github.com/adampharrels/Assignment2/issues/3)
+
 Agree on these together, so everyone can then build in parallel:
 
 1. **Screens:** which screens we build and who owns each. The proposed list is in the spec above.
@@ -30,11 +34,11 @@ Agree on these together, so everyone can then build in parallel:
 
 Then **each person writes the entity classes and interface for their own area**:
 
-| Person | Writes |
-|---|---|
-| Adam | Skill-related entities, the analytics interface + result types, the EF `DbContext`, DI registrations in `Program.cs` |
-| Sarah | Application + stage-history entities, enums for status/source/work mode, the application service interface |
-| Grace | Company + interview entities, their service interfaces, the database seed-data class |
+| Person | Writes | Issue |
+|---|---|---|
+| Adam | Skill-related entities, the analytics interface + result types, the EF `DbContext`, DI registrations in `Program.cs` | [#4](https://github.com/adampharrels/Assignment2/issues/4) |
+| Sarah | Application + stage-history entities, enums for status/source/work mode, the application service interface | [#5](https://github.com/adampharrels/Assignment2/issues/5) |
+| Grace | Company + interview entities, their service interfaces, the database seed-data class | [#6](https://github.com/adampharrels/Assignment2/issues/6) |
 
 Adam merges these into one PR so `main` has the agreed contracts by Thu afternoon.
 
@@ -42,35 +46,35 @@ Adam merges these into one PR so `main` has the agreed contracts by Thu afternoo
 
 ### Adam: analytics, ML, integration 
 
-| Slice | What |
-|---|---|
-| **A1** Statistics | Conversion funnel, interview rates by skill/source/location/salary band with confidence intervals, timing (days to response, ghosting rate, weekly trend) |
-| **A2** Text pipeline | Tokenizer, TF-IDF written by hand, cosine similarity, skill demand ranking |
-| **A3** Skill extraction | Skill dictionary with synonyms, extracting skills from job descriptions, skill-gap ranking vs the user's profile |
-| **A4** ML models | Feature building, logistic regression and naive Bayes written by hand, k-fold cross-validation, per-application prediction with explanations |
-| **A5** Insights | Plain-English insights generated from the statistics |
-| **A6** Analytics UI | Analytics page (charts) and the "skills & fit" panel shown on the application details page |
-| **A7** Integration lead | Review and merge PRs, check the build in VS 2022 on Windows, final zip, assemble the report |
+| Slice | What | Issue |
+|---|---|---|
+| **A1** Statistics | Conversion funnel, interview rates by skill/source/location/salary band with confidence intervals, timing (days to response, ghosting rate, weekly trend) | [#7](https://github.com/adampharrels/Assignment2/issues/7) |
+| **A2** Text pipeline | Tokenizer, TF-IDF written by hand, cosine similarity, skill demand ranking | [#8](https://github.com/adampharrels/Assignment2/issues/8) |
+| **A3** Skill extraction | Skill dictionary with synonyms, extracting skills from job descriptions, skill-gap ranking vs the user's profile | [#9](https://github.com/adampharrels/Assignment2/issues/9) |
+| **A4** ML models | Feature building, logistic regression and naive Bayes written by hand, k-fold cross-validation, per-application prediction with explanations | [#10](https://github.com/adampharrels/Assignment2/issues/10) |
+| **A5** Insights | Plain-English insights generated from the statistics | [#11](https://github.com/adampharrels/Assignment2/issues/11) |
+| **A6** Analytics UI | Analytics page (charts) and the "skills & fit" panel shown on the application details page | [#12](https://github.com/adampharrels/Assignment2/issues/12) |
+| **A7** Integration lead | Review and merge PRs, check the build in VS 2022 on Windows, final zip, assemble the report | [#13](https://github.com/adampharrels/Assignment2/issues/13) |
 
 ### Sarah: applications, board, details
 
-| Slice | What |
-|---|---|
-| **S1** Application CRUD | Add/edit/delete applications, form with validation, recording stage history |
-| **S2** Applications list | Table with search, filters (status, source, location, skill, salary slider) and sorting |
-| **S3** Kanban board | Drag-and-drop stages, status-change rules, context menu, error message on illegal moves |
-| **S4** Details page | Full details, job description, stage timeline, interviews for that application |
+| Slice | What | Issue |
+|---|---|---|
+| **S1** Application CRUD | Add/edit/delete applications, form with validation, recording stage history | [#14](https://github.com/adampharrels/Assignment2/issues/14) |
+| **S2** Applications list | Table with search, filters (status, source, location, skill, salary slider) and sorting | [#15](https://github.com/adampharrels/Assignment2/issues/15) |
+| **S3** Kanban board | Drag-and-drop stages, status-change rules, context menu, error message on illegal moves | [#16](https://github.com/adampharrels/Assignment2/issues/16) |
+| **S4** Details page | Full details, job description, stage timeline, interviews for that application | [#17](https://github.com/adampharrels/Assignment2/issues/17) |
 
 ### Grace: dashboard, calendar, companies, data
 
-| Slice | What |
-|---|---|
-| **G1** Seed data (**first: needed by Fri 9 Oct**) | 50+ realistic demo applications with varied skills, sources, locations, salaries, outcomes and job descriptions |
-| **G2** Dashboard | KPI cards, upcoming interviews, recent activity, top insights |
-| **G3** Interview calendar | Month view, add/edit interviews, overlap validation, outcomes, `.ics` export |
-| **G4** Companies | Company CRUD + per-company stats |
-| **G5** Import / export | CSV and JSON import/export with row validation and an error report |
-| **G6** Profile | Resume text and "my skills", used for fit scoring and skill gap |
+| Slice | What | Issue |
+|---|---|---|
+| **G1** Seed data (**first: needed by Fri 9 Oct**) | 50+ realistic demo applications with varied skills, sources, locations, salaries, outcomes and job descriptions | [#18](https://github.com/adampharrels/Assignment2/issues/18) |
+| **G2** Dashboard | KPI cards, upcoming interviews, recent activity, top insights | [#19](https://github.com/adampharrels/Assignment2/issues/19) |
+| **G3** Interview calendar | Month view, add/edit interviews, overlap validation, outcomes, `.ics` export | [#20](https://github.com/adampharrels/Assignment2/issues/20) |
+| **G4** Companies | Company CRUD + per-company stats | [#21](https://github.com/adampharrels/Assignment2/issues/21) |
+| **G5** Import / export | CSV and JSON import/export with row validation and an error report | [#22](https://github.com/adampharrels/Assignment2/issues/22) |
+| **G6** Profile | Resume text and "my skills", used for fit scoring and skill gap | [#23](https://github.com/adampharrels/Assignment2/issues/23) |
 
 Everyone writes NUnit tests for their own slices.
 
