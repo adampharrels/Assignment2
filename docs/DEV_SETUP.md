@@ -32,9 +32,15 @@ dotnet run --project src/JobTracker.Web    # then open http://localhost:5080
 Editor: **VS Code** + the "C# Dev Kit" extension, or **JetBrains Rider** (free for students).
 For hot reload while editing pages, use `dotnet watch --project src/JobTracker.Web`.
 
-> Only have .NET 10? It still works: `Directory.Build.props` sets `RollForward=Major`, so the net9.0 app
-> runs on the 10 runtime. Just **don't** change `TargetFramework`, and don't add packages that only
-> support net10.0 (CI on the .NET 9 SDK will catch it).
+> **You need the .NET 9 runtime, not just .NET 10.** With only .NET 10 installed, the build and the
+> tests still work (`RollForward=Major`), but the web app runs on the 10 runtime, where
+> `_framework/blazor.web.js` returns 404. Pages load, but **nothing is interactive**: buttons, tabs,
+> dialogs and charts do nothing. Check with `dotnet --list-runtimes`: you need a
+> `Microsoft.AspNetCore.App 9.0.x` line. Install it with `brew install --cask dotnet-sdk@9` or from
+> https://dotnet.microsoft.com/download/dotnet/9.0. Having .NET 10 as well is fine.
+>
+> Also **don't** change `TargetFramework`, and don't add packages that only support net10.0
+> (CI on the .NET 9 SDK will catch it).
 
 ## Windows
 
