@@ -1,7 +1,7 @@
 using JobTracker.Analytics.MachineLearning;
 using JobTracker.Core.Analytics;
 
-namespace JobTracker.Tests.A4;
+namespace JobTracker.Tests.Analytics.MachineLearning;
 
 [TestFixture]
 public class ClassifierTests

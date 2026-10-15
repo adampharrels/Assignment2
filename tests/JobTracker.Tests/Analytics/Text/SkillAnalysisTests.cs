@@ -1,8 +1,7 @@
 using JobTracker.Analytics.Text;
 using JobTracker.Core.Analytics;
-using JobTracker.Tests.A1;
 
-namespace JobTracker.Tests.A3;
+namespace JobTracker.Tests.Analytics.Text;
 
 [TestFixture]
 public class SkillAnalysisTests

@@ -1,6 +1,6 @@
 using JobTracker.Core.Analytics;
 
-namespace JobTracker.Tests.A1;
+namespace JobTracker.Tests.Analytics;
 
 /// <summary>Small helpers for building hand-made applications in tests.</summary>
 public static class TestRecords

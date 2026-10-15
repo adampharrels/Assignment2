@@ -1,6 +1,6 @@
 using JobTracker.Analytics.Text;
 
-namespace JobTracker.Tests.A2;
+namespace JobTracker.Tests.Analytics.Text;
 
 [TestFixture]
 public class TfIdfVectorizerTests

@@ -1,7 +1,7 @@
 using JobTracker.Analytics.Statistics;
 using JobTracker.Core.Analytics;
 
-namespace JobTracker.Tests.A1;
+namespace JobTracker.Tests.Analytics.Statistics;
 
 [TestFixture]
 public class RateStatisticsTests

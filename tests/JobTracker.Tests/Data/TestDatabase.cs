@@ -2,7 +2,7 @@ using JobTracker.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
-namespace JobTracker.Tests.K1;
+namespace JobTracker.Tests.Data;
 
 /// <summary>
 /// A fresh SQLite database held in memory for one test. The connection must stay open,
