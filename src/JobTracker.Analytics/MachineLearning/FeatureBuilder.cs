@@ -1,6 +1,7 @@
 using JobTracker.Analytics.Statistics;
 using JobTracker.Analytics.Text;
 using JobTracker.Core.Analytics;
+using JobTracker.Core.Enums;
 
 namespace JobTracker.Analytics.MachineLearning;
 
@@ -48,6 +49,7 @@ public class FeatureBuilder
         _workModes = records.Select(record => record.WorkMode).Distinct().OrderBy(mode => mode).ToList();
         _topSkills = records
             .SelectMany(record => _skillExtractor.Extract(record.JobDescription).Distinct())
+            .Where(skill => SkillDictionary.CategoryOf(skill) != SkillCategory.Soft) // "teamwork" is in nearly every ad; not informative.
             .GroupBy(skill => skill)
             .OrderByDescending(group => group.Count())
             .ThenBy(group => group.Key)
