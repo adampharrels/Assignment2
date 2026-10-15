@@ -109,12 +109,12 @@ public class SkillAnalysis
 
     private static string DescribeGap(SkillDemand demand, GroupRate rate, double overallRate)
     {
-        string share = $"Asked for in {demand.DocumentShare:P0} of your jobs ({demand.DocumentCount}).";
+        string share = $"Asked for in {TextFormat.Percent(demand.DocumentShare)} of your jobs ({demand.DocumentCount}).";
         if (!rate.IsReliable)
         {
             return share + " Too few applications to judge its effect on interviews yet.";
         }
 
-        return share + $" You reached interview in {rate.Rate:P0} of those, vs {overallRate:P0} overall.";
+        return share + $" You reached interview in {TextFormat.Percent(rate.Rate)} of those, vs {TextFormat.Percent(overallRate)} overall.";
     }
 }
