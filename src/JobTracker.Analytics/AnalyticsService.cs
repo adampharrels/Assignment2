@@ -1,3 +1,4 @@
+using JobTracker.Analytics.Insights;
 using JobTracker.Analytics.MachineLearning;
 using JobTracker.Analytics.Statistics;
 using JobTracker.Analytics.Text;
@@ -16,6 +17,7 @@ public class AnalyticsService : IAnalyticsService
     private readonly IApplicationDataSource _dataSource;
     private readonly IProfileService _profileService;
     private readonly ISkillExtractor _skillExtractor;
+    private readonly InsightEngine _insightEngine = new InsightEngine();
 
     /// <summary>Creates the service from the application data, the user's profile and a skill extractor.</summary>
     public AnalyticsService(IApplicationDataSource dataSource, IProfileService profileService, ISkillExtractor skillExtractor)
@@ -76,9 +78,21 @@ public class AnalyticsService : IAnalyticsService
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<Insight>> GetInsightsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Insight>> GetInsightsAsync(CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<IReadOnlyList<Insight>>(new List<Insight>()); // A5
+        IReadOnlyList<ApplicationRecord> records = await _dataSource.GetApplicationsAsync(cancellationToken);
+        SkillAnalysis skills = await CreateSkillAnalysisAsync(records, cancellationToken);
+
+        var context = new InsightContext
+        {
+            Records = records,
+            Summary = PipelineStatistics.Summarise(records),
+            SourceRates = PipelineStatistics.InterviewRates(records, RateBreakdown.Source),
+            TacticRates = PipelineStatistics.InterviewRates(records, RateBreakdown.Tactics),
+            SkillRates = skills.InterviewRates(),
+            SkillGaps = skills.Gap(5)
+        };
+        return _insightEngine.Generate(context);
     }
 
     /// <inheritdoc />
