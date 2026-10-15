@@ -7,8 +7,8 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  # Every PR, including ones stacked on another feature branch, so each slice is checked.
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 env:
