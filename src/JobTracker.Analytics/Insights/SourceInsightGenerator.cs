@@ -1,3 +1,4 @@
+using JobTracker.Analytics.Statistics;
 using JobTracker.Core.Analytics;
 
 namespace JobTracker.Analytics.Insights;
@@ -19,8 +20,8 @@ public class SourceInsightGenerator : InsightGenerator
         {
             yield return new Insight
             {
-                Title = $"{best.Group} is your best source: {best.Lift:0.0}x the average interview rate",
-                Detail = $"{Describe(best)} reached an interview, vs {context.Summary.InterviewRate:P0} overall.",
+                Title = $"{best.Group} is your best source: {TextFormat.Times(best.Lift)} the average interview rate",
+                Detail = $"{Describe(best)} reached an interview, vs {TextFormat.Percent(context.Summary.InterviewRate)} overall.",
                 Kind = InsightKind.Positive,
                 Importance = EffectImportance(best.Lift, best.Total),
                 SampleSize = best.Total
@@ -33,7 +34,7 @@ public class SourceInsightGenerator : InsightGenerator
             yield return new Insight
             {
                 Title = $"{worst.Group} applications rarely lead to interviews",
-                Detail = $"Only {Describe(worst)} reached an interview, vs {context.Summary.InterviewRate:P0} overall. "
+                Detail = $"Only {Describe(worst)} reached an interview, vs {TextFormat.Percent(context.Summary.InterviewRate)} overall. "
                     + "Consider spending that time on better-performing sources.",
                 Kind = InsightKind.Negative,
                 Importance = EffectImportance(worst.Lift, worst.Total),

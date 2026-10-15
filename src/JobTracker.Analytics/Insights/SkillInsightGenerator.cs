@@ -1,3 +1,4 @@
+using JobTracker.Analytics.Statistics;
 using JobTracker.Core.Analytics;
 
 namespace JobTracker.Analytics.Insights;
@@ -17,7 +18,7 @@ public class SkillInsightGenerator : InsightGenerator
             yield return new Insight
             {
                 Title = $"Jobs asking for {best.Group} are your strongest match",
-                Detail = $"{Describe(best)} reached an interview ({best.Lift:0.0}x average). Prioritise similar roles.",
+                Detail = $"{Describe(best)} reached an interview ({TextFormat.Times(best.Lift)} average). Prioritise similar roles.",
                 Kind = InsightKind.Positive,
                 Importance = EffectImportance(best.Lift, best.Total),
                 SampleSize = best.Total
@@ -33,7 +34,7 @@ public class SkillInsightGenerator : InsightGenerator
             yield return new Insight
             {
                 Title = $"Jobs asking for {worst.Group} rarely convert",
-                Detail = $"Only {Describe(worst)} reached an interview ({worst.Lift:0.0}x average).",
+                Detail = $"Only {Describe(worst)} reached an interview ({TextFormat.Times(worst.Lift)} average).",
                 Kind = InsightKind.Negative,
                 Importance = EffectImportance(worst.Lift, worst.Total),
                 SampleSize = worst.Total

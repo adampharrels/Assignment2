@@ -1,3 +1,4 @@
+using JobTracker.Analytics.Statistics;
 using JobTracker.Core.Analytics;
 
 namespace JobTracker.Analytics.Insights;
@@ -38,6 +39,6 @@ public abstract class InsightGenerator
     /// <summary>"9 of 15 (60%)" style text.</summary>
     protected static string Describe(GroupRate rate)
     {
-        return $"{rate.Successes} of {rate.Total} ({rate.Rate:P0}, 95% CI {rate.CiLow:P0}-{rate.CiHigh:P0})";
+        return $"{rate.Successes} of {rate.Total} ({TextFormat.Percent(rate.Rate)}, 95% CI {TextFormat.Percent(rate.CiLow)}-{TextFormat.Percent(rate.CiHigh)})";
     }
 }

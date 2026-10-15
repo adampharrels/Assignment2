@@ -1,3 +1,4 @@
+using JobTracker.Analytics.Statistics;
 using JobTracker.Core.Analytics;
 
 namespace JobTracker.Analytics.Insights;
@@ -30,7 +31,7 @@ public class TimingInsightGenerator : InsightGenerator
             int ghosted = context.Records.Count(record => record.Outcome == ApplicationOutcome.Ghosted);
             yield return new Insight
             {
-                Title = $"{summary.GhostingRate:P0} of your applications were ghosted",
+                Title = $"{TextFormat.Percent(summary.GhostingRate)} of your applications were ghosted",
                 Detail = $"{ghosted} of {summary.TotalApplications} never got a reply. Applying through referrals or "
                     + "company websites usually gets more answers than job boards.",
                 Kind = InsightKind.Negative,

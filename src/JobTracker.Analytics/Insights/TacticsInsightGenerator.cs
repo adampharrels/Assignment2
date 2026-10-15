@@ -1,3 +1,4 @@
+using JobTracker.Analytics.Statistics;
 using JobTracker.Core.Analytics;
 
 namespace JobTracker.Analytics.Insights;
@@ -37,7 +38,7 @@ public class TacticsInsightGenerator : InsightGenerator
             {
                 yield return new Insight
                 {
-                    Title = $"{advice}: {ratio:0.0}x the interview rate",
+                    Title = $"{advice}: {TextFormat.Times(ratio)} the interview rate",
                     Detail = $"{withName}: {Describe(with)}. {withoutName}: {Describe(without)}.",
                     Kind = InsightKind.Recommendation,
                     Importance = EffectImportance(ratio, sampleSize),
