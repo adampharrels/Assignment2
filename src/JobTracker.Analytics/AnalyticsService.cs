@@ -1,6 +1,8 @@
+using JobTracker.Analytics.MachineLearning;
 using JobTracker.Analytics.Statistics;
 using JobTracker.Analytics.Text;
 using JobTracker.Core.Analytics;
+using JobTracker.Core.Entities;
 using JobTracker.Core.Interfaces;
 
 namespace JobTracker.Analytics;
@@ -80,27 +82,63 @@ public class AnalyticsService : IAnalyticsService
     }
 
     /// <inheritdoc />
-    public Task<InterviewPrediction?> PredictAsync(int applicationId, CancellationToken cancellationToken = default)
+    public async Task<InterviewPrediction?> PredictAsync(int applicationId, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<InterviewPrediction?>(null); // A4
+        IReadOnlyList<ApplicationRecord> records = await _dataSource.GetApplicationsAsync(cancellationToken);
+        ApplicationRecord? record = records.FirstOrDefault(item => item.Id == applicationId);
+        if (record == null)
+        {
+            return null;
+        }
+
+        InterviewPredictor predictor = await CreatePredictorAsync(records, cancellationToken);
+        return predictor.Predict(record);
     }
 
     /// <inheritdoc />
-    public Task<InterviewPrediction> PredictWhatIfAsync(WhatIfInput input, CancellationToken cancellationToken = default)
+    public async Task<InterviewPrediction> PredictWhatIfAsync(WhatIfInput input, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(new InterviewPrediction()); // A4
+        IReadOnlyList<ApplicationRecord> records = await _dataSource.GetApplicationsAsync(cancellationToken);
+        InterviewPredictor predictor = await CreatePredictorAsync(records, cancellationToken);
+
+        // A pretend application built from the form, as if the user applied today.
+        var record = new ApplicationRecord
+        {
+            JobDescription = input.JobDescription,
+            Source = input.Source,
+            WorkMode = input.WorkMode,
+            SalaryMin = input.SalaryMin,
+            SalaryMax = input.SalaryMax,
+            HadReferral = input.HadReferral,
+            TailoredResume = input.TailoredResume,
+            WroteCoverLetter = input.WroteCoverLetter,
+            DateApplied = DateTime.Today
+        };
+        return predictor.Predict(record);
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<ModelEvaluation>> EvaluateModelsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ModelEvaluation>> EvaluateModelsAsync(CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<IReadOnlyList<ModelEvaluation>>(new List<ModelEvaluation>()); // A4
+        IReadOnlyList<ApplicationRecord> records = await _dataSource.GetApplicationsAsync(cancellationToken);
+        InterviewPredictor predictor = await CreatePredictorAsync(records, cancellationToken);
+        return predictor.Evaluate();
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<FeatureContribution>> GetModelWeightsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<FeatureContribution>> GetModelWeightsAsync(CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<IReadOnlyList<FeatureContribution>>(new List<FeatureContribution>()); // A4
+        IReadOnlyList<ApplicationRecord> records = await _dataSource.GetApplicationsAsync(cancellationToken);
+        InterviewPredictor predictor = await CreatePredictorAsync(records, cancellationToken);
+        return predictor.Weights();
+    }
+
+    /// <summary>Trains the interview model on the applications, using the user's resume and skills.</summary>
+    private async Task<InterviewPredictor> CreatePredictorAsync(IReadOnlyList<ApplicationRecord> records, CancellationToken cancellationToken)
+    {
+        UserProfile profile = await _profileService.GetProfileAsync(cancellationToken);
+        IReadOnlyList<string> profileSkills = await _profileService.GetProfileSkillNamesAsync(cancellationToken);
+        return new InterviewPredictor(records, profile.ResumeText, profileSkills, _skillExtractor);
     }
 
     /// <summary>Runs skill extraction over every application, using the user's current profile skills.</summary>
