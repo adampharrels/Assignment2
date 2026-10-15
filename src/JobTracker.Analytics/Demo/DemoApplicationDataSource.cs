@@ -5,7 +5,7 @@ namespace JobTracker.Analytics.Demo;
 
 /// <summary>
 /// Temporary stand-in for the real application data while the application entity (K2) does not exist.
-/// Generates 60 realistic applications. A fixed random seed makes the data identical on every run,
+/// Generates 72 realistic applications. A fixed random seed makes the data identical on every run,
 /// so the demo and the charts are repeatable.
 /// </summary>
 /// <remarks>
@@ -15,7 +15,8 @@ namespace JobTracker.Analytics.Demo;
 /// </remarks>
 public class DemoApplicationDataSource : IApplicationDataSource
 {
-    private const int ApplicationCount = 60;
+    private const int ApplicationCount = 72;
+    private const int DefaultSeed = 2046;
     private static readonly DateTime FirstApplicationDate = new DateTime(2026, 7, 1);
 
     private static readonly RoleTemplate[] Roles =
@@ -40,7 +41,7 @@ public class DemoApplicationDataSource : IApplicationDataSource
 
     private static readonly string[] Locations = { "Sydney", "Sydney", "Sydney", "Melbourne", "Melbourne", "Brisbane", "Canberra", "Remote" };
 
-    private static readonly string[] Sources = { "LinkedIn", "LinkedIn", "Seek", "Seek", "GradConnection", "Company website", "Referral", "Career fair" };
+    private static readonly string[] Sources = { "LinkedIn", "LinkedIn", "Seek", "Seek", "GradConnection", "Company website", "Referral", "Referral", "Career fair" };
 
     private static readonly string[] Openers =
     {
@@ -72,9 +73,10 @@ public class DemoApplicationDataSource : IApplicationDataSource
     }
 
     /// <summary>Builds the full demo list. Public so tests can check it directly.</summary>
-    public static IReadOnlyList<ApplicationRecord> Generate()
+    /// <param name="seed">Random seed; the default gives the data used in the demo.</param>
+    public static IReadOnlyList<ApplicationRecord> Generate(int seed = DefaultSeed)
     {
-        var random = new Random(2026);
+        var random = new Random(seed);
         var records = new List<ApplicationRecord>();
 
         for (int i = 0; i < ApplicationCount; i++)
@@ -83,8 +85,9 @@ public class DemoApplicationDataSource : IApplicationDataSource
             string source = Sources[random.Next(Sources.Length)];
             string location = Locations[random.Next(Locations.Length)];
             DateTime applied = FirstApplicationDate.AddDays(i * 1.5).Date;
-            int daysAfterPosting = random.Next(0, 15);
+            int daysAfterPosting = random.Next(0, 10);
             decimal salaryMin = role.BaseSalary + random.Next(-6, 7) * 1_000;
+            bool salaryStated = random.NextDouble() < 0.85;
 
             var record = new ApplicationRecord
             {
@@ -94,8 +97,8 @@ public class DemoApplicationDataSource : IApplicationDataSource
                 Location = location,
                 WorkMode = location == "Remote" ? "Remote" : (random.NextDouble() < 0.7 ? "Hybrid" : "On-site"),
                 Source = source,
-                SalaryMin = random.NextDouble() < 0.85 ? salaryMin : null,
-                SalaryMax = random.NextDouble() < 0.85 ? salaryMin + 10_000 : null,
+                SalaryMin = salaryStated ? salaryMin : null,
+                SalaryMax = salaryStated ? salaryMin + 10_000 : null,
                 DatePosted = applied.AddDays(-daysAfterPosting),
                 DateApplied = applied,
                 HadReferral = source == "Referral",
@@ -105,13 +108,13 @@ public class DemoApplicationDataSource : IApplicationDataSource
             record.JobDescription = WriteJobDescription(role, record.CompanyName, random);
 
             // Chance of an interview, on the log-odds scale, from the patterns described in the remarks.
-            double logOdds = -1.6;
-            logOdds += record.HadReferral ? 1.8 : 0.0;
-            logOdds += record.TailoredResume ? 0.8 : 0.0;
+            double logOdds = -2.2;
+            logOdds += record.HadReferral ? 2.0 : 0.0;
+            logOdds += record.TailoredResume ? 1.0 : 0.0;
             logOdds += record.WroteCoverLetter ? 0.3 : 0.0;
-            logOdds += 0.6 * (role.SkillsUserHas.Length - 1);
-            logOdds += daysAfterPosting <= 3 ? 0.6 : 0.0;
-            logOdds += source == "Seek" ? -0.5 : 0.0;
+            logOdds += 0.7 * (role.SkillsUserHas.Length - 1);
+            logOdds += daysAfterPosting <= 3 ? 1.0 : 0.0;
+            logOdds += source == "Seek" ? -0.6 : 0.0;
             bool gotInterview = random.NextDouble() < 1.0 / (1.0 + Math.Exp(-logOdds));
 
             DecideOutcome(record, gotInterview, random);
