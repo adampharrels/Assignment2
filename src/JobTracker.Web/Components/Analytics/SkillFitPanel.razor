@@ -1,0 +1,54 @@
+@* Owner: Adam (A6). Drop this onto the application details page (S4):
+       <SkillFitPanel ApplicationId="@Id" />
+   It loads the prediction itself, so the host page does not need to know about analytics. *@
+@inject IAnalyticsService Analytics
+
+<MudPaper Class="pa-4" Elevation="1">
+    <MudText Typo="Typo.h6" GutterBottom="true">Skills &amp; fit</MudText>
+
+    @if (_loading)
+    {
+        <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+    }
+    else if (_error != null)
+    {
+        <MudAlert Severity="Severity.Error" Dense="true">@_error</MudAlert>
+    }
+    else if (_prediction == null)
+    {
+        <MudText Typo="Typo.body2">No prediction available for this application.</MudText>
+    }
+    else
+    {
+        <PredictionCard Prediction="_prediction" />
+    }
+</MudPaper>
+
+@code {
+    /// <summary>The application to predict for.</summary>
+    [Parameter, EditorRequired]
+    public int ApplicationId { get; set; }
+
+    private InterviewPrediction? _prediction;
+    private bool _loading = true;
+    private string? _error;
+
+    /// <summary>Reloads whenever the host page passes a different application.</summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _prediction = await Analytics.PredictAsync(ApplicationId);
+        }
+        catch (Exception exception)
+        {
+            _error = "Could not calculate the prediction: " + exception.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

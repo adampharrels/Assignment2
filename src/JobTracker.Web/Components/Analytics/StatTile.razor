@@ -1,0 +1,21 @@
+@* One headline number with a label and a short detail line. *@
+
+<MudPaper Class="pa-4" Elevation="1">
+    <MudText Typo="Typo.overline">@Label</MudText>
+    <MudText Typo="Typo.h4">@Value</MudText>
+    <MudText Typo="Typo.caption">@Detail</MudText>
+</MudPaper>
+
+@code {
+    /// <summary>What the number is.</summary>
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>The number, already formatted.</summary>
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = string.Empty;
+
+    /// <summary>A short line of context under the number.</summary>
+    [Parameter]
+    public string Detail { get; set; } = string.Empty;
+}
