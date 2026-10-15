@@ -1,6 +1,7 @@
 using ApexCharts;
 using JobTracker.Analytics;
 using JobTracker.Analytics.Demo;
+using JobTracker.Analytics.Text;
 using JobTracker.Core.Interfaces;
 using JobTracker.Data;
 using JobTracker.Data.Services;
@@ -22,6 +23,7 @@ builder.Services.AddDbContextFactory<JobTrackerDbContext>(options => options.Use
 builder.Services.AddScoped<IProfileService, ProfileService>();                 // K1 (Adam)
 // TODO (K2, Sarah): replace the demo data with the application service once it implements IApplicationDataSource.
 builder.Services.AddSingleton<IApplicationDataSource, DemoApplicationDataSource>();
+builder.Services.AddSingleton<ISkillExtractor, DictionarySkillExtractor>();      // A3 (Adam)
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();            // A1-A5 (Adam)
 
 var app = builder.Build();

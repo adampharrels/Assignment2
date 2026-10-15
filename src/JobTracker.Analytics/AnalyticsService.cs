@@ -1,4 +1,5 @@
 using JobTracker.Analytics.Statistics;
+using JobTracker.Analytics.Text;
 using JobTracker.Core.Analytics;
 using JobTracker.Core.Interfaces;
 
@@ -12,12 +13,14 @@ public class AnalyticsService : IAnalyticsService
 {
     private readonly IApplicationDataSource _dataSource;
     private readonly IProfileService _profileService;
+    private readonly ISkillExtractor _skillExtractor;
 
-    /// <summary>Creates the service from the application data and the user's profile.</summary>
-    public AnalyticsService(IApplicationDataSource dataSource, IProfileService profileService)
+    /// <summary>Creates the service from the application data, the user's profile and a skill extractor.</summary>
+    public AnalyticsService(IApplicationDataSource dataSource, IProfileService profileService, ISkillExtractor skillExtractor)
     {
         _dataSource = dataSource;
         _profileService = profileService;
+        _skillExtractor = skillExtractor;
     }
 
     /// <inheritdoc />
@@ -47,22 +50,27 @@ public class AnalyticsService : IAnalyticsService
         IReadOnlyList<ApplicationRecord> records = await _dataSource.GetApplicationsAsync(cancellationToken);
         if (breakdown == RateBreakdown.Skill)
         {
-            return new List<GroupRate>(); // Needs skill extraction (A3).
+            SkillAnalysis skills = await CreateSkillAnalysisAsync(records, cancellationToken);
+            return skills.InterviewRates();
         }
 
         return PipelineStatistics.InterviewRates(records, breakdown);
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<SkillDemand>> GetSkillDemandAsync(int top = 20, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<SkillDemand>> GetSkillDemandAsync(int top = 20, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<IReadOnlyList<SkillDemand>>(new List<SkillDemand>()); // A3
+        IReadOnlyList<ApplicationRecord> records = await _dataSource.GetApplicationsAsync(cancellationToken);
+        SkillAnalysis skills = await CreateSkillAnalysisAsync(records, cancellationToken);
+        return skills.Demand(top);
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<SkillGap>> GetSkillGapAsync(int top = 10, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<SkillGap>> GetSkillGapAsync(int top = 10, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<IReadOnlyList<SkillGap>>(new List<SkillGap>()); // A3
+        IReadOnlyList<ApplicationRecord> records = await _dataSource.GetApplicationsAsync(cancellationToken);
+        SkillAnalysis skills = await CreateSkillAnalysisAsync(records, cancellationToken);
+        return skills.Gap(top);
     }
 
     /// <inheritdoc />
@@ -93,5 +101,12 @@ public class AnalyticsService : IAnalyticsService
     public Task<IReadOnlyList<FeatureContribution>> GetModelWeightsAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult<IReadOnlyList<FeatureContribution>>(new List<FeatureContribution>()); // A4
+    }
+
+    /// <summary>Runs skill extraction over every application, using the user's current profile skills.</summary>
+    private async Task<SkillAnalysis> CreateSkillAnalysisAsync(IReadOnlyList<ApplicationRecord> records, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<string> profileSkills = await _profileService.GetProfileSkillNamesAsync(cancellationToken);
+        return new SkillAnalysis(records, _skillExtractor, profileSkills);
     }
 }

@@ -12,7 +12,7 @@ public class SkillGap
     /// <summary>Interview-rate lift of applications that ask for it (1 = average).</summary>
     public double InterviewLift { get; set; }
 
-    /// <summary>Ranking score: demand weighted by lift. Higher means learn it sooner.</summary>
+    /// <summary>Ranking score: demand, weighted up when the user does worse on jobs asking for it. Higher means learn it sooner.</summary>
     public double Score { get; set; }
 
     /// <summary>A one-line plain-English explanation.</summary>
