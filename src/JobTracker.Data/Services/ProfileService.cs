@@ -20,7 +20,7 @@ public class ProfileService : IProfileService
     public async Task<UserProfile> GetProfileAsync(CancellationToken cancellationToken = default)
     {
         await using JobTrackerDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        UserProfile? profile = await context.UserProfiles.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
+        UserProfile? profile = await context.UserProfiles.AsNoTracking().OrderBy(item => item.Id).FirstOrDefaultAsync(cancellationToken);
         return profile ?? new UserProfile();
     }
 
@@ -30,7 +30,7 @@ public class ProfileService : IProfileService
         Validator.ValidateObject(profile, new ValidationContext(profile), validateAllProperties: true);
 
         await using JobTrackerDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        UserProfile? existing = await context.UserProfiles.FirstOrDefaultAsync(cancellationToken);
+        UserProfile? existing = await context.UserProfiles.OrderBy(item => item.Id).FirstOrDefaultAsync(cancellationToken);
         if (existing == null)
         {
             context.UserProfiles.Add(profile);
