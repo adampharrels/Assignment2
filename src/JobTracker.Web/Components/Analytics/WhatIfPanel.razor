@@ -1,0 +1,129 @@
+@* What-if predictor: paste a job ad before applying and see the predicted interview chance. *@
+@inject IAnalyticsService Analytics
+
+<MudGrid>
+    <MudItem xs="12" md="7">
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudTextField T="string" @bind-Value="_input.JobDescription" Label="Job description" Variant="Variant.Outlined"
+                          Lines="10" Required="true" RequiredError="Paste the job description first."
+                          Validation="@(new Func<string, string?>(ValidateDescription))" />
+            <MudGrid Class="mt-2">
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" @bind-Value="_input.Source" Label="Where you found it" Variant="Variant.Outlined" Dense="true">
+                        @foreach (string source in Sources)
+                        {
+                            <MudSelectItem Value="source">@source</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" @bind-Value="_input.WorkMode" Label="Work mode" Variant="Variant.Outlined" Dense="true">
+                        @foreach (string mode in WorkModes)
+                        {
+                            <MudSelectItem Value="mode">@mode</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal?" @bind-Value="_input.SalaryMin" Label="Salary from (AUD, optional)" Variant="Variant.Outlined"
+                                     Min="0" Max="1000000" Step="5000" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal?" @bind-Value="_input.SalaryMax" Label="Salary to (AUD, optional)" Variant="Variant.Outlined"
+                                     Min="0" Max="1000000" Step="5000" Margin="Margin.Dense"
+                                     Validation="@(new Func<decimal?, string?>(ValidateSalaryMax))" />
+                </MudItem>
+            </MudGrid>
+            <MudStack Row="true" Wrap="Wrap.Wrap" Class="mt-2">
+                <MudSwitch T="bool" @bind-Value="_input.HadReferral" Label="I have a referral" Color="Color.Primary" />
+                <MudSwitch T="bool" @bind-Value="_input.TailoredResume" Label="I'll tailor my resume" Color="Color.Primary" />
+                <MudSwitch T="bool" @bind-Value="_input.WroteCoverLetter" Label="I'll write a cover letter" Color="Color.Primary" />
+            </MudStack>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" StartIcon="@Icons.Material.Filled.Insights"
+                       Disabled="_predicting" OnClick="PredictAsync">
+                @(_predicting ? "Calculating..." : "Predict my chance")
+            </MudButton>
+        </MudForm>
+    </MudItem>
+
+    <MudItem xs="12" md="5">
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error">@_error</MudAlert>
+        }
+        else if (_prediction != null)
+        {
+            <MudPaper Class="pa-4" Outlined="true">
+                <PredictionCard Prediction="_prediction" />
+            </MudPaper>
+        }
+        else
+        {
+            <MudText Typo="Typo.body2">Fill in the form to see how likely this job is to lead to an interview, and which skills you are missing.</MudText>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    private const int MinimumDescriptionLength = 30;
+
+    private static readonly string[] Sources = { "LinkedIn", "Seek", "GradConnection", "Company website", "Referral", "Career fair" };
+    private static readonly string[] WorkModes = { "Hybrid", "On-site", "Remote" };
+
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _predicting;
+    private string? _error;
+    private InterviewPrediction? _prediction;
+    private readonly WhatIfInput _input = new WhatIfInput { Source = "LinkedIn", WorkMode = "Hybrid" };
+
+    private async Task PredictAsync()
+    {
+        if (_form == null)
+        {
+            return;
+        }
+
+        await _form.Validate();
+        if (!_isValid)
+        {
+            return;
+        }
+
+        _predicting = true;
+        _error = null;
+        try
+        {
+            _input.HadReferral = _input.HadReferral || _input.Source == "Referral";
+            _prediction = await Analytics.PredictWhatIfAsync(_input);
+        }
+        catch (Exception exception)
+        {
+            _error = "Could not calculate the prediction: " + exception.Message;
+        }
+        finally
+        {
+            _predicting = false;
+        }
+    }
+
+    private static string? ValidateDescription(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Trim().Length < MinimumDescriptionLength)
+        {
+            return $"Paste at least {MinimumDescriptionLength} characters of the job description.";
+        }
+
+        return null;
+    }
+
+    private string? ValidateSalaryMax(decimal? salaryMax)
+    {
+        if (salaryMax.HasValue && _input.SalaryMin.HasValue && salaryMax.Value < _input.SalaryMin.Value)
+        {
+            return "The upper salary must not be below the lower salary.";
+        }
+
+        return null;
+    }
+}

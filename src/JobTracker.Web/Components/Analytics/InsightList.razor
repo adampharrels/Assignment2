@@ -1,0 +1,44 @@
+@* Plain-English findings from the insight engine, each with its sample size. *@
+
+@if (Insights.Count == 0)
+{
+    <MudText Typo="Typo.body2">No insights yet. They appear once there are about 10 applications to learn from.</MudText>
+}
+else
+{
+    <MudStack Spacing="2">
+        @foreach (Insight insight in Insights.Take(MaxItems))
+        {
+            <MudAlert Severity="@SeverityOf(insight.Kind)" Variant="Variant.Outlined" Dense="true">
+                <MudText Typo="Typo.subtitle2">@insight.Title</MudText>
+                <MudText Typo="Typo.body2">@insight.Detail</MudText>
+                <MudText Typo="Typo.caption">Based on @insight.SampleSize applications</MudText>
+            </MudAlert>
+        }
+    </MudStack>
+}
+
+@code {
+    /// <summary>The insights to show, most important first.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<Insight> Insights { get; set; } = new List<Insight>();
+
+    /// <summary>How many to show at most.</summary>
+    [Parameter]
+    public int MaxItems { get; set; } = 10;
+
+    private static Severity SeverityOf(InsightKind kind)
+    {
+        switch (kind)
+        {
+            case InsightKind.Positive:
+                return Severity.Success;
+            case InsightKind.Negative:
+                return Severity.Warning;
+            case InsightKind.Recommendation:
+                return Severity.Info;
+            default:
+                return Severity.Normal;
+        }
+    }
+}

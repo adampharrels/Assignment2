@@ -1,0 +1,36 @@
+@* Applications sent vs interviews gained per week. Same unit (count), so one shared axis. *@
+
+@if (Points.Count == 0)
+{
+    <MudText Typo="Typo.body2">No applications yet.</MudText>
+}
+else
+{
+    <ApexCharts.ApexChart TItem="TrendPoint" Title="Applications and interviews per week" Height="300" Options="_options">
+        <ApexCharts.ApexPointSeries TItem="TrendPoint" Items="Points" Name="Applications sent"
+                                    SeriesType="ApexCharts.SeriesType.Line" Color="@ChartStyles.Blue"
+                                    XValue="point => point.WeekStart.ToString(WeekFormat)" YValue="point => point.Applications" />
+        <ApexCharts.ApexPointSeries TItem="TrendPoint" Items="Points" Name="Led to an interview"
+                                    SeriesType="ApexCharts.SeriesType.Line" Color="@ChartStyles.Orange"
+                                    XValue="point => point.WeekStart.ToString(WeekFormat)" YValue="point => point.Interviews" />
+    </ApexCharts.ApexChart>
+}
+
+@code {
+    private const string WeekFormat = "d MMM";
+
+    /// <summary>One point per week, oldest first.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<TrendPoint> Points { get; set; } = new List<TrendPoint>();
+
+    private readonly ApexCharts.ApexChartOptions<TrendPoint> _options = CreateOptions();
+
+    private static ApexCharts.ApexChartOptions<TrendPoint> CreateOptions()
+    {
+        ApexCharts.ApexChartOptions<TrendPoint> options = ChartStyles.Create<TrendPoint>();
+        options.Stroke = new ApexCharts.Stroke { Width = 2, Curve = ApexCharts.Curve.Straight };
+        options.Markers = new ApexCharts.Markers { Size = 4 };
+        options.Tooltip = new ApexCharts.Tooltip { Shared = true, Intersect = false };
+        return options;
+    }
+}

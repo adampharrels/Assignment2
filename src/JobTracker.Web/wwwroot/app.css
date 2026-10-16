@@ -1,1 +1,9 @@
 /* App-wide styles. */
+
+/* Small colour square used in hand-made chart legends. */
+.legend-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}

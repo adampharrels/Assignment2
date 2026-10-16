@@ -1,0 +1,62 @@
+@* What employers ask for (TF-IDF ranking) and which missing skills to learn next. *@
+
+<MudGrid>
+    <MudItem xs="12" lg="7">
+        @if (Demand.Count == 0)
+        {
+            <MudText Typo="Typo.body2">No skills found in your job descriptions yet.</MudText>
+        }
+        else
+        {
+            <ApexCharts.ApexChart TItem="SkillDemand" Title="Most requested skills" Height="@ChartHeight" Options="_options">
+                <ApexCharts.ApexPointSeries TItem="SkillDemand" Items="DemandByShare" Name="Share of job descriptions"
+                                            SeriesType="ApexCharts.SeriesType.Bar"
+                                            XValue="skill => skill.Skill" YValue="skill => (decimal)Math.Round(skill.DocumentShare * 100, 1)"
+                                            PointColor="skill => skill.InMyProfile ? ChartStyles.Blue : ChartStyles.Orange" />
+            </ApexCharts.ApexChart>
+            <div class="d-flex gap-4 flex-wrap">
+                <span class="d-flex align-center gap-1"><span class="legend-swatch" style="background:@ChartStyles.Blue"></span><MudText Typo="Typo.caption">In your profile</MudText></span>
+                <span class="d-flex align-center gap-1"><span class="legend-swatch" style="background:@ChartStyles.Orange"></span><MudText Typo="Typo.caption">Missing from your profile</MudText></span>
+            </div>
+            <MudText Typo="Typo.caption">The top skills by TF-IDF weight (how often a skill is asked for and how central it is to each ad), shown by the share of ads asking for it.</MudText>
+        }
+    </MudItem>
+
+    <MudItem xs="12" lg="5">
+        <MudText Typo="Typo.h6" GutterBottom="true">Learn next</MudText>
+        @if (Gaps.Count == 0)
+        {
+            <MudText Typo="Typo.body2">No skill gaps found. Add job descriptions or update your profile skills.</MudText>
+        }
+        else
+        {
+            <MudList T="string" Dense="true">
+                @foreach (SkillGap gap in Gaps)
+                {
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.School">
+                        <MudText Typo="Typo.subtitle2">@gap.Skill</MudText>
+                        <MudText Typo="Typo.body2">@gap.Reason</MudText>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    /// <summary>The most requested skills, highest first.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<SkillDemand> Demand { get; set; } = new List<SkillDemand>();
+
+    /// <summary>Missing skills worth learning, best first.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<SkillGap> Gaps { get; set; } = new List<SkillGap>();
+
+    private readonly ApexCharts.ApexChartOptions<SkillDemand> _options = ChartStyles.CreatePercent<SkillDemand>(horizontal: true);
+
+    /// <summary>Bars are sorted by the value they show, so the chart reads top to bottom.</summary>
+    private IReadOnlyList<SkillDemand> DemandByShare => Demand.OrderByDescending(skill => skill.DocumentShare).ToList();
+
+    /// <summary>About 28px per bar so long lists stay readable.</summary>
+    private string ChartHeight => (Demand.Count * 28 + 80).ToString();
+}

@@ -1,0 +1,99 @@
+@page "/analytics"
+@* Owner: Adam (A6). The main screen: what is working in the job search, and why. *@
+@inject IAnalyticsService Analytics
+
+<PageTitle>Analytics</PageTitle>
+
+<MudText Typo="Typo.h4">Analytics</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">
+    What is turning your applications into interviews, with confidence intervals so you can tell a pattern from luck.
+</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_error != null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else
+{
+    <MudGrid Class="mb-4">
+        <MudItem xs="6" md="3"><StatTile Label="Applications" Value="@_summary.TotalApplications.ToString()" Detail="@($"{_summary.Active} still active")" /></MudItem>
+        <MudItem xs="6" md="3"><StatTile Label="Interview rate" Value="@_summary.InterviewRate.ToString("P0")" Detail="@($"{_summary.Interviews} interviews")" /></MudItem>
+        <MudItem xs="6" md="3"><StatTile Label="Offers" Value="@_summary.Offers.ToString()" Detail="@($"{_summary.FinalRounds} final rounds")" /></MudItem>
+        <MudItem xs="6" md="3"><StatTile Label="Median reply time" Value="@MedianReplyText" Detail="@($"{_summary.GhostingRate:P0} ghosted")" /></MudItem>
+    </MudGrid>
+
+    <MudTabs @bind-ActivePanelIndex="_activeTab" Elevation="1" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
+        <MudTabPanel Text="Insights" Icon="@Icons.Material.Filled.Lightbulb">
+            <InsightList Insights="_insights" />
+        </MudTabPanel>
+        <MudTabPanel Text="Funnel & trend" Icon="@Icons.Material.Filled.FilterAlt">
+            <MudGrid>
+                <MudItem xs="12" lg="6"><FunnelChart Stages="_funnel" /></MudItem>
+                <MudItem xs="12" lg="6"><TrendChart Points="_trend" /></MudItem>
+            </MudGrid>
+        </MudTabPanel>
+        <MudTabPanel Text="What converts" Icon="@Icons.Material.Filled.BarChart">
+            <RateBreakdownPanel />
+        </MudTabPanel>
+        <MudTabPanel Text="Skills" Icon="@Icons.Material.Filled.Psychology">
+            <SkillsPanel Demand="_demand" Gaps="_gaps" />
+        </MudTabPanel>
+        <MudTabPanel Text="Model" Icon="@Icons.Material.Filled.ModelTraining">
+            <ModelPanel Evaluations="_evaluations" Weights="_weights" />
+        </MudTabPanel>
+        <MudTabPanel Text="What if?" Icon="@Icons.Material.Filled.QuestionMark">
+            <WhatIfPanel />
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    /// <summary>Optional tab to open first, e.g. /analytics?tab=2 opens "What converts".</summary>
+    [SupplyParameterFromQuery(Name = "tab")]
+    public int? Tab { get; set; }
+
+    private int _activeTab;
+    private bool _loading = true;
+    private string? _error;
+    private PipelineSummary _summary = new PipelineSummary();
+    private IReadOnlyList<Insight> _insights = new List<Insight>();
+    private IReadOnlyList<FunnelStage> _funnel = new List<FunnelStage>();
+    private IReadOnlyList<TrendPoint> _trend = new List<TrendPoint>();
+    private IReadOnlyList<SkillDemand> _demand = new List<SkillDemand>();
+    private IReadOnlyList<SkillGap> _gaps = new List<SkillGap>();
+    private IReadOnlyList<ModelEvaluation> _evaluations = new List<ModelEvaluation>();
+    private IReadOnlyList<FeatureContribution> _weights = new List<FeatureContribution>();
+
+    private string MedianReplyText => _summary.MedianDaysToResponse.HasValue
+        ? _summary.MedianDaysToResponse.Value.ToString("0") + " days"
+        : "-";
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        _activeTab = Math.Clamp(Tab ?? 0, 0, 5);
+        try
+        {
+            _summary = await Analytics.GetSummaryAsync();
+            _insights = await Analytics.GetInsightsAsync();
+            _funnel = await Analytics.GetFunnelAsync();
+            _trend = await Analytics.GetWeeklyTrendAsync();
+            _demand = await Analytics.GetSkillDemandAsync(15);
+            _gaps = await Analytics.GetSkillGapAsync(6);
+            _evaluations = await Analytics.EvaluateModelsAsync();
+            _weights = await Analytics.GetModelWeightsAsync();
+        }
+        catch (Exception exception)
+        {
+            _error = "Could not load analytics: " + exception.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

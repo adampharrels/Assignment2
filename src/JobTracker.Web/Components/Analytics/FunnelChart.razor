@@ -1,0 +1,46 @@
+@* Hiring funnel: how many applications survive each stage. One blue hue getting darker per stage. *@
+
+@if (Stages.Count == 0)
+{
+    <MudText Typo="Typo.body2">No applications yet.</MudText>
+}
+else
+{
+    <ApexCharts.ApexChart TItem="FunnelStage" Title="Hiring funnel" Height="280" Options="_options">
+        <ApexCharts.ApexPointSeries TItem="FunnelStage" Items="Stages" Name="Applications"
+                                    SeriesType="ApexCharts.SeriesType.Bar"
+                                    XValue="stage => stage.Name" YValue="stage => stage.Count"
+                                    PointColor="ColourOf" ShowDataLabels="true" />
+    </ApexCharts.ApexChart>
+
+    <MudSimpleTable Dense="true" Hover="true" Class="mt-2">
+        <thead>
+            <tr><th>Stage</th><th>Applications</th><th>From previous stage</th><th>From all applications</th></tr>
+        </thead>
+        <tbody>
+            @foreach (FunnelStage stage in Stages)
+            {
+                <tr>
+                    <td>@stage.Name</td>
+                    <td>@stage.Count</td>
+                    <td>@stage.ConversionFromPrevious.ToString("P0")</td>
+                    <td>@stage.ConversionFromStart.ToString("P0")</td>
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+}
+
+@code {
+    /// <summary>Funnel stages in order, from Applied to Offer.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<FunnelStage> Stages { get; set; } = new List<FunnelStage>();
+
+    private readonly ApexCharts.ApexChartOptions<FunnelStage> _options = ChartStyles.Create<FunnelStage>(horizontal: true);
+
+    private string ColourOf(FunnelStage stage)
+    {
+        int index = Stages.ToList().IndexOf(stage);
+        return ChartStyles.FunnelRamp[Math.Clamp(index, 0, ChartStyles.FunnelRamp.Length - 1)];
+    }
+}
