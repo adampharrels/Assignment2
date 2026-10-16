@@ -1,0 +1,77 @@
+@* How good the models are (cross-validated) and what the logistic regression learned. *@
+
+@if (Evaluations.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">
+        The models need at least 10 decided applications, including some with and some without an interview.
+    </MudAlert>
+}
+else
+{
+    <MudText Typo="Typo.h6">Model comparison (5-fold cross-validation)</MudText>
+    <MudText Typo="Typo.body2" Class="mb-2">
+        Each model is tested on applications it did not learn from. A model is only useful if it beats the baseline,
+        especially on log loss (lower is better), which rewards honest probabilities.
+    </MudText>
+    <MudTable Items="Evaluations" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+            <MudTh>Model</MudTh>
+            <MudTh>Applications</MudTh>
+            <MudTh>Accuracy</MudTh>
+            <MudTh>Precision</MudTh>
+            <MudTh>Recall</MudTh>
+            <MudTh>Log loss</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                @context.ModelName
+                @if (context == BestModel)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Icon="@Icons.Material.Filled.EmojiEvents">best</MudChip>
+                }
+            </MudTd>
+            <MudTd>@context.SampleSize</MudTd>
+            <MudTd>@context.Accuracy.ToString("P0")</MudTd>
+            <MudTd>@context.Precision.ToString("P0")</MudTd>
+            <MudTd>@context.Recall.ToString("P0")</MudTd>
+            <MudTd>@context.LogLoss.ToString("0.000")</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@if (Weights.Count > 0)
+{
+    <MudText Typo="Typo.h6" Class="mt-6">What drives your interviews</MudText>
+    <ApexCharts.ApexChart TItem="FeatureContribution" Title="Logistic regression weights (log-odds)" Height="@ChartHeight" Options="_options">
+        <ApexCharts.ApexPointSeries TItem="FeatureContribution" Items="TopWeights" Name="Weight"
+                                    SeriesType="ApexCharts.SeriesType.Bar"
+                                    XValue="weight => weight.Feature" YValue="weight => (decimal)Math.Round(weight.Contribution, 2)"
+                                    PointColor="weight => weight.Contribution >= 0 ? ChartStyles.Blue : ChartStyles.Red" />
+    </ApexCharts.ApexChart>
+    <div class="d-flex gap-4 flex-wrap">
+        <span class="d-flex align-center gap-1"><span class="legend-swatch" style="background:@ChartStyles.Blue"></span><MudText Typo="Typo.caption">Raises your chance</MudText></span>
+        <span class="d-flex align-center gap-1"><span class="legend-swatch" style="background:@ChartStyles.Red"></span><MudText Typo="Typo.caption">Lowers your chance</MudText></span>
+    </div>
+    <MudText Typo="Typo.caption">Numeric inputs (resume fit, skill match, salary) are standardised, so weights are comparable.</MudText>
+}
+
+@code {
+    private const int MaxWeights = 12;
+
+    /// <summary>Cross-validated results, one per model.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ModelEvaluation> Evaluations { get; set; } = new List<ModelEvaluation>();
+
+    /// <summary>Logistic-regression weights, strongest first.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<FeatureContribution> Weights { get; set; } = new List<FeatureContribution>();
+
+    private readonly ApexCharts.ApexChartOptions<FeatureContribution> _options = ChartStyles.Create<FeatureContribution>(horizontal: true);
+
+    private IReadOnlyList<FeatureContribution> TopWeights => Weights.Take(MaxWeights).ToList();
+
+    private string ChartHeight => (TopWeights.Count * 28 + 80).ToString();
+
+    /// <summary>Lowest log loss wins.</summary>
+    private ModelEvaluation? BestModel => Evaluations.OrderBy(evaluation => evaluation.LogLoss).FirstOrDefault();
+}

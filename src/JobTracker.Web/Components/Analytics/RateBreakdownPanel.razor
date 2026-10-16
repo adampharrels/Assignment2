@@ -1,0 +1,125 @@
+@* "What converts": interview rate per group, for a breakdown the user picks from a dropdown.
+   Bars for small (unreliable) groups are grey, and the table shows each 95% confidence interval. *@
+@inject IAnalyticsService Analytics
+
+<MudSelect T="RateBreakdown" Label="Break interview rate down by" Value="_breakdown" ValueChanged="OnBreakdownChanged"
+           Variant="Variant.Outlined" Dense="true" Class="mb-4" Style="max-width: 320px;">
+    @foreach (RateBreakdown option in Enum.GetValues<RateBreakdown>())
+    {
+        <MudSelectItem Value="option">@LabelOf(option)</MudSelectItem>
+    }
+</MudSelect>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_error != null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else if (_rates.Count == 0)
+{
+    <MudText Typo="Typo.body2">No data for this breakdown yet.</MudText>
+}
+else
+{
+    <ApexCharts.ApexChart @key="_breakdown" TItem="GroupRate" Title="@($"Interview rate by {LabelOf(_breakdown).ToLower()}")"
+                          Height="320" Options="_options">
+        <ApexCharts.ApexPointSeries TItem="GroupRate" Items="ChartRates" Name="Interview rate"
+                                    SeriesType="ApexCharts.SeriesType.Bar"
+                                    XValue="rate => rate.Group" YValue="rate => (decimal)Math.Round(rate.Rate * 100, 1)"
+                                    PointColor="rate => rate.IsReliable ? ChartStyles.Blue : ChartStyles.Muted" />
+    </ApexCharts.ApexChart>
+    <MudText Typo="Typo.caption">
+        Grey bars have fewer than @GroupRate.MinReliableSample applications: treat them as a hint, not a finding.
+        Overall interview rate: @_overallRate.ToString("P0").
+    </MudText>
+
+    <MudTable Items="_rates" Dense="true" Hover="true" Class="mt-4" Elevation="0">
+        <HeaderContent>
+            <MudTh>Group</MudTh>
+            <MudTh>Applications</MudTh>
+            <MudTh>Interviews</MudTh>
+            <MudTh>Rate</MudTh>
+            <MudTh>95% confidence interval</MudTh>
+            <MudTh>vs average</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                @context.Group
+                @if (!context.IsReliable)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Info">small sample</MudChip>
+                }
+            </MudTd>
+            <MudTd>@context.Total</MudTd>
+            <MudTd>@context.Successes</MudTd>
+            <MudTd>@context.Rate.ToString("P0")</MudTd>
+            <MudTd>@context.CiLow.ToString("P0") - @context.CiHigh.ToString("P0")</MudTd>
+            <MudTd>@context.Lift.ToString("0.0")x</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private const int MaxBars = 15;
+
+    private RateBreakdown _breakdown = RateBreakdown.Source;
+    private IReadOnlyList<GroupRate> _rates = new List<GroupRate>();
+    private double _overallRate;
+    private bool _loading = true;
+    private string? _error;
+    private readonly ApexCharts.ApexChartOptions<GroupRate> _options = ChartStyles.CreatePercent<GroupRate>();
+
+    /// <summary>The chart shows at most 15 groups (skills can have dozens); the table shows all.</summary>
+    private IReadOnlyList<GroupRate> ChartRates => _rates.Take(MaxBars).ToList();
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task OnBreakdownChanged(RateBreakdown breakdown)
+    {
+        _breakdown = breakdown;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _rates = await Analytics.GetInterviewRatesAsync(_breakdown);
+            _overallRate = (await Analytics.GetSummaryAsync()).InterviewRate;
+        }
+        catch (Exception exception)
+        {
+            _error = "Could not load interview rates: " + exception.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string LabelOf(RateBreakdown breakdown)
+    {
+        switch (breakdown)
+        {
+            case RateBreakdown.Skill:
+                return "Skill asked for";
+            case RateBreakdown.WorkMode:
+                return "Work mode";
+            case RateBreakdown.SalaryBand:
+                return "Salary band";
+            case RateBreakdown.Tactics:
+                return "Tactics (referral, resume, cover letter, timing)";
+            default:
+                return breakdown.ToString();
+        }
+    }
+}

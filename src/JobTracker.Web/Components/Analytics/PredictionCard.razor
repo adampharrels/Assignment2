@@ -1,0 +1,68 @@
+@* Shows one interview prediction: chance, resume fit, matched/missing skills and the top reasons.
+   Used by the what-if tab and by SkillFitPanel on the application details page. *@
+
+<MudStack Spacing="2">
+    <div>
+        <MudText Typo="Typo.overline">Chance of an interview</MudText>
+        <MudText Typo="Typo.h3">@Prediction.Probability.ToString("P0")</MudText>
+        <MudProgressLinear Value="@(Prediction.Probability * 100)" Color="Color.Primary" Rounded="true" Size="Size.Medium" />
+        <MudText Typo="Typo.caption">@Prediction.ModelName</MudText>
+    </div>
+
+    <div>
+        <MudText Typo="Typo.overline">Resume fit (TF-IDF cosine similarity)</MudText>
+        <MudText Typo="Typo.h6">@Prediction.ResumeFitScore.ToString("P0")</MudText>
+    </div>
+
+    <div>
+        <MudText Typo="Typo.overline">Skills you have (@Prediction.MatchedSkills.Count)</MudText>
+        <div>
+            @foreach (string skill in Prediction.MatchedSkills)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Icon="@Icons.Material.Filled.Check">@skill</MudChip>
+            }
+            @if (Prediction.MatchedSkills.Count == 0)
+            {
+                <MudText Typo="Typo.body2">None of the listed skills.</MudText>
+            }
+        </div>
+    </div>
+
+    <div>
+        <MudText Typo="Typo.overline">Skills you are missing (@Prediction.MissingSkills.Count)</MudText>
+        <div>
+            @foreach (string skill in Prediction.MissingSkills)
+            {
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Add">@skill</MudChip>
+            }
+            @if (Prediction.MissingSkills.Count == 0)
+            {
+                <MudText Typo="Typo.body2">Nothing missing.</MudText>
+            }
+        </div>
+    </div>
+
+    @if (Prediction.TopFactors.Count > 0)
+    {
+        <div>
+            <MudText Typo="Typo.overline">Biggest reasons</MudText>
+            <MudList T="string" Dense="true">
+                @foreach (FeatureContribution factor in Prediction.TopFactors)
+                {
+                    bool helps = factor.Contribution > 0;
+                    <MudListItem T="string"
+                                 Icon="@(helps ? Icons.Material.Filled.TrendingUp : Icons.Material.Filled.TrendingDown)"
+                                 IconColor="@(helps ? Color.Success : Color.Error)">
+                        @factor.Feature: @(helps ? "raises" : "lowers") your chance
+                    </MudListItem>
+                }
+            </MudList>
+        </div>
+    }
+</MudStack>
+
+@code {
+    /// <summary>The prediction to show.</summary>
+    [Parameter, EditorRequired]
+    public InterviewPrediction Prediction { get; set; } = new InterviewPrediction();
+}
