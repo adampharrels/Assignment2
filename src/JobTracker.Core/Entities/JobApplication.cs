@@ -15,8 +15,10 @@ public class JobApplication : IValidatableObject
     /// <summary>The database-generated identifier.</summary>
     public int Id { get; set; }
 
-    /// <summary>The company's identifier.</summary>
-    [Range(1, int.MaxValue, ErrorMessage = "Choose a company.")]
+    /// <summary>
+    /// The company's identifier. The application service sets it from the company name typed in the
+    /// form, so it is not validated here (a new application has no company yet when the form checks it).
+    /// </summary>
     public int CompanyId { get; set; }
 
     /// <summary>The company, when loaded with the application.</summary>

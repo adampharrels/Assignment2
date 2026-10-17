@@ -1,0 +1,167 @@
+@page "/applications"
+@* Owner: Sarah. S1: add, edit and delete applications. S2 adds search, filters and sorting to this page. *@
+@using JobTracker.Core.Entities
+@using JobTracker.Core.Enums
+@using JobTracker.Core.Extensions
+@using JobTracker.Web.Components.Applications
+@inject IApplicationService ApplicationService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Applications</PageTitle>
+
+<div class="d-flex flex-wrap align-center justify-space-between gap-2 mb-4">
+    <div>
+        <MudText Typo="Typo.h4">Applications</MudText>
+        <MudText Typo="Typo.body2">Every job you have applied for or saved for later.</MudText>
+    </div>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddAsync">
+        Add application
+    </MudButton>
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_error != null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else if (_applications.Count == 0)
+{
+    <MudPaper Class="pa-8 d-flex flex-column align-center gap-2" Elevation="0" Outlined="true">
+        <MudIcon Icon="@Icons.Material.Filled.WorkOutline" Size="Size.Large" Color="Color.Secondary" />
+        <MudText Typo="Typo.h6">No applications yet</MudText>
+        <MudText Typo="Typo.body2">Add your first application to start tracking it.</MudText>
+    </MudPaper>
+}
+else
+{
+    <MudTable Items="_applications" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Elevation="1">
+        <HeaderContent>
+            <MudTh>Role</MudTh>
+            <MudTh>Company</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Location</MudTh>
+            <MudTh>Applied</MudTh>
+            <MudTh Style="text-align:right">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Role">@context.RoleTitle</MudTd>
+            <MudTd DataLabel="Company">@context.Company?.Name</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="StatusColor(context.Status)" Variant="Variant.Text">@context.Status.ToDisplayText()</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Location">@context.Location (@context.WorkMode.ToDisplayText())</MudTd>
+            <MudTd DataLabel="Applied">@(context.DateApplied?.ToString("d MMM yyyy") ?? "Not yet")</MudTd>
+            <MudTd DataLabel="Actions" Style="text-align:right">
+                <MudTooltip Text="Edit">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditAsync(context)" />
+                </MudTooltip>
+                <MudTooltip Text="Delete">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteAsync(context)" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private static readonly DialogOptions FormOptions = new DialogOptions
+    {
+        MaxWidth = MaxWidth.Medium,
+        FullWidth = true,
+        CloseButton = true,
+        BackdropClick = false
+    };
+
+    private IReadOnlyList<JobApplication> _applications = Array.Empty<JobApplication>();
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _error = null;
+            _applications = await ApplicationService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load applications: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task AddAsync()
+    {
+        IDialogReference dialog = await DialogService.ShowAsync<ApplicationFormDialog>("Add application", FormOptions);
+        DialogResult? result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Application added.", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task EditAsync(JobApplication application)
+    {
+        var parameters = new DialogParameters<ApplicationFormDialog> { { dialog => dialog.ApplicationId, application.Id } };
+        IDialogReference dialog = await DialogService.ShowAsync<ApplicationFormDialog>("Edit application", parameters, FormOptions);
+        DialogResult? result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Changes saved.", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(JobApplication application)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Delete application",
+            $"Delete \"{application.RoleTitle}\" at {application.Company?.Name}? Its stage history and interviews are deleted too.",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await ApplicationService.DeleteAsync(application.Id);
+            Snackbar.Add("Application deleted.", Severity.Info);
+        }
+        catch (KeyNotFoundException)
+        {
+            Snackbar.Add("That application was already deleted.", Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not delete: {ex.Message}", Severity.Error);
+        }
+
+        await LoadAsync();
+    }
+
+    /// <summary>Green for good news, red for endings, grey for open stages.</summary>
+    private static Color StatusColor(ApplicationStatus status) => status switch
+    {
+        ApplicationStatus.Offer or ApplicationStatus.Accepted => Color.Success,
+        ApplicationStatus.Interview or ApplicationStatus.FinalRound => Color.Info,
+        ApplicationStatus.Rejected or ApplicationStatus.Ghosted => Color.Error,
+        ApplicationStatus.Withdrawn => Color.Warning,
+        _ => Color.Default
+    };
+}

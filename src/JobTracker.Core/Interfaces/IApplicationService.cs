@@ -40,6 +40,9 @@ public interface IApplicationService
     /// <summary>Returns an application with its company and stage history (oldest first), or null if it does not exist.</summary>
     Task<JobApplication?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns every company name in alphabetical order, for the company autocomplete in the form.</summary>
+    Task<IReadOnlyList<string>> GetCompanyNamesAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Returns an application's status changes, oldest first, or an empty list.</summary>
     Task<IReadOnlyList<StageEvent>> GetHistoryAsync(int applicationId, CancellationToken cancellationToken = default);
 
