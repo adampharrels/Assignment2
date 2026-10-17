@@ -4,10 +4,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace JobTracker.Data;
 
-/// <summary>Creates the database on first run and adds the starting profile and skill list.</summary>
+/// <summary>Creates the database on first run and adds the starting profile, skill list and demo data.</summary>
 public static class DatabaseInitializer
 {
-    /// <summary>Creates the schema if needed, then seeds the profile and skills when they are empty.</summary>
+    /// <summary>Creates the schema if needed, then seeds the profile, skills and G1 demo data when they are empty.</summary>
     public static async Task InitializeAsync(IDbContextFactory<JobTrackerDbContext> contextFactory)
     {
         await using JobTrackerDbContext context = await contextFactory.CreateDbContextAsync();
@@ -30,6 +30,7 @@ public static class DatabaseInitializer
             context.Skills.AddRange(CreateStartingSkills());
         }
 
+        await SeedData.AddDemoDataAsync(context);
         await context.SaveChangesAsync();
     }
 

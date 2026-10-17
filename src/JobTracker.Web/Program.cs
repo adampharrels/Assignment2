@@ -1,9 +1,9 @@
 using ApexCharts;
 using JobTracker.Analytics;
-using JobTracker.Analytics.Demo;
 using JobTracker.Analytics.Text;
 using JobTracker.Core.Interfaces;
 using JobTracker.Data;
+using JobTracker.Data.Seed;
 using JobTracker.Data.Services;
 using JobTracker.Web.Components;
 using Microsoft.EntityFrameworkCore;
@@ -21,8 +21,8 @@ builder.Services.AddDbContextFactory<JobTrackerDbContext>(options => options.Use
 
 // Services (owner in brackets). Add your registration here, or ask Adam to.
 builder.Services.AddScoped<IProfileService, ProfileService>();                 // K1 (Adam)
-// TODO (K2, Sarah): replace the demo data with the application service once it implements IApplicationDataSource.
-builder.Services.AddSingleton<IApplicationDataSource, DemoApplicationDataSource>();
+// TODO (K2, Sarah): replace the seed data with the application service once it implements IApplicationDataSource.
+builder.Services.AddSingleton<IApplicationDataSource, SeedApplicationDataSource>(); // G1 (Grace)
 builder.Services.AddSingleton<ISkillExtractor, DictionarySkillExtractor>();      // A3 (Adam)
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();            // A1-A5 (Adam)
 
