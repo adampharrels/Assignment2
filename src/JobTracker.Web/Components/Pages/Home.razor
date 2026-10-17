@@ -1,6 +1,150 @@
 @page "/"
+@using JobTracker.Data.Services
+@implements IAsyncDisposable
+@inject DashboardService Dashboard
+@inject ILogger<Home> Logger
 
-<PageTitle>Grad Job Tracker</PageTitle>
+<PageTitle>Dashboard · Grad Job Tracker</PageTitle>
 
-<MudText Typo="Typo.h4">Grad Job Tracker</MudText>
-<MudText Class="mt-2">The project is set up. Pages get added here.</MudText>
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <MudText Typo="Typo.h4">Dashboard</MudText>
+    <MudStack Row="true">
+        <MudButton Variant="Variant.Outlined" OnClick="RefreshAsync" Disabled="_loading">Refresh</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@_data?.Applications.AddApplicationUrl"
+                   Disabled="@(_data?.Applications.AddApplicationUrl is null)">Add application</MudButton>
+    </MudStack>
+</MudStack>
+@if (_data?.Applications.AddApplicationUrl is null)
+{
+    <MudText Typo="Typo.caption">Adding applications will be available when the application screen is connected.</MudText>
+}
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+}
+@if (_error)
+{
+    <MudAlert Severity="Severity.Error" Class="my-4">Could not refresh the dashboard. Please try Refresh again.</MudAlert>
+}
+@if (_data is not null)
+{
+    @if (_data.Applications.IsDemo)
+    {
+        <MudAlert Severity="Severity.Info" Class="my-4">Application totals and activity use demo submissions until application tracking is connected. Interviews come from the saved calendar data.</MudAlert>
+    }
+    <div class="dashboard-kpis my-4">
+        <StatTile Label="Total" Value="@_data.Applications.Total.ToString()" Detail="All tracked applications" />
+        <StatTile Label="Submitted" Value="@_data.Summary.TotalApplications.ToString()" Detail="Sent to employers" />
+        <StatTile Label="Response rate" Value="@_data.Summary.ResponseRate.ToString("P0")" Detail="Of submitted applications" />
+        <StatTile Label="Interview rate" Value="@_data.Summary.InterviewRate.ToString("P0")" Detail="Of submitted applications" />
+        <StatTile Label="Final rounds" Value="@_data.Summary.FinalRounds.ToString()" />
+        <StatTile Label="Offers" Value="@_data.Summary.Offers.ToString()" />
+    </div>
+    @if (_data.Applications.Total == 0)
+    {
+        <MudAlert Severity="Severity.Info">No applications yet. Your progress will appear here once you start tracking jobs.</MudAlert>
+    }
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">Upcoming interviews · next 7 days</MudText>
+                <MudText Typo="Typo.caption">Times shown in Sydney time (AEST/AEDT).</MudText>
+                @if (_data.Interviews.Count == 0)
+                {
+                    <MudText Class="mt-2">No interviews scheduled in the next 7 days.</MudText>
+                }
+                @foreach (var interview in _data.Interviews)
+                {
+                    <div class="my-3">
+                        <MudText Typo="Typo.subtitle2">@interview.Type · Application #@interview.ApplicationId</MudText>
+                        <MudText>@SydneyTime(interview.ScheduledAt).ToString("ddd d MMM, HH:mm") Sydney time · @interview.DurationMinutes minutes</MudText>
+                        <MudText Typo="Typo.body2">@interview.LocationOrLink</MudText>
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">Recent activity</MudText>
+                @if (_data.Activity.Count == 0)
+                {
+                    <MudText>No stage changes yet.</MudText>
+                }
+                @foreach (var change in _data.Activity)
+                {
+                    <div class="my-3">
+                        <MudText Typo="Typo.subtitle2">@change.Company · @change.Role</MudText>
+                        <MudText Typo="Typo.body2">@change.Stage · @change.ChangedAt.ToString("d MMM yyyy")</MudText>
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">Top insights</MudText>
+                <InsightList Insights="_data.Insights" MaxItems="3" />
+                <MudLink Href="/analytics" Class="mt-3">Explore analytics</MudLink>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private static readonly TimeZoneInfo SydneyTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Australia/Sydney");
+
+    // SQLite returns an unspecified Kind; interview timestamps are stored as UTC.
+    private static DateTime SydneyTime(DateTime utc) =>
+        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), SydneyTimeZone);
+
+    private DashboardSnapshot? _data;
+    private bool _loading;
+    private bool _error;
+    private readonly CancellationTokenSource _lifetime = new();
+    private Task? _refreshLoop;
+
+    /// <inheritdoc />
+    protected override Task OnInitializedAsync() => RefreshAsync();
+
+    /// <inheritdoc />
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            _refreshLoop = AutoRefreshAsync();
+        return Task.CompletedTask;
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (_loading || _lifetime.IsCancellationRequested) return;
+        _loading = true;
+        _error = false;
+        try { _data = await Dashboard.LoadAsync(DateTime.UtcNow, _lifetime.Token); }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Dashboard refresh failed");
+            _error = true;
+            _data = null;
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task AutoRefreshAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_lifetime.Token))
+                await InvokeAsync(async () => { await RefreshAsync(); StateHasChanged(); });
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+    }
+
+    /// <summary>Stops background refreshing when the user leaves the dashboard.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        await _lifetime.CancelAsync();
+        if (_refreshLoop is not null) await _refreshLoop;
+        _lifetime.Dispose();
+    }
+}
