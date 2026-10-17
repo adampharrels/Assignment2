@@ -10,7 +10,6 @@ namespace JobTracker.Data;
 /// <remarks>
 /// The schema is created with EnsureCreated, not migrations. After pulling a change to any entity,
 /// delete your local jobtracker.db file and run the app again.
-/// TODO (K2, Sarah): add the application and stage-history DbSets here.
 /// </remarks>
 public class JobTrackerDbContext : DbContext
 {
@@ -19,6 +18,12 @@ public class JobTrackerDbContext : DbContext
         : base(options)
     {
     }
+
+    /// <summary>Job applications (K2, Sarah).</summary>
+    public DbSet<JobApplication> Applications => Set<JobApplication>();
+
+    /// <summary>Every status change of every application (K2, Sarah).</summary>
+    public DbSet<StageEvent> StageEvents => Set<StageEvent>();
 
     /// <summary>Companies (K3, Grace).</summary>
     public DbSet<Company> Companies => Set<Company>();
@@ -46,6 +51,31 @@ public class JobTrackerDbContext : DbContext
             entity.HasIndex(interview => interview.ApplicationId);
             entity.Property(interview => interview.Type).HasConversion<string>();
             entity.Property(interview => interview.Outcome).HasConversion<string>();
+        });
+
+        // K2 (Sarah). Interviews are not linked by a foreign key yet: the seed data adds interviews
+        // before applications are saved. The application service deletes them itself (see DeleteAsync).
+        modelBuilder.Entity<JobApplication>(entity =>
+        {
+            entity.HasOne(application => application.Company)
+                .WithMany()
+                .HasForeignKey(application => application.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(application => application.StageHistory)
+                .WithOne(stageEvent => stageEvent.Application)
+                .HasForeignKey(stageEvent => stageEvent.ApplicationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(application => application.Status);
+            entity.Property(application => application.Status).HasConversion<string>();
+            entity.Property(application => application.Source).HasConversion<string>();
+            entity.Property(application => application.WorkMode).HasConversion<string>();
+        });
+
+        modelBuilder.Entity<StageEvent>(entity =>
+        {
+            entity.HasIndex(stageEvent => new { stageEvent.ApplicationId, stageEvent.ChangedAt });
+            entity.Property(stageEvent => stageEvent.FromStatus).HasConversion<string>();
+            entity.Property(stageEvent => stageEvent.ToStatus).HasConversion<string>();
         });
 
         modelBuilder.Entity<Skill>(entity =>
