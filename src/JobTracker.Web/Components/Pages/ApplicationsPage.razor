@@ -1,19 +1,23 @@
 @page "/applications"
-@* Owner: Sarah. S1: add, edit and delete applications. S2 adds search, filters and sorting to this page. *@
+@* Owner: Sarah. S1: add, edit and delete applications. S2: search, filters, salary slider and sorting. *@
+@using JobTracker.Analytics.Text
 @using JobTracker.Core.Entities
 @using JobTracker.Core.Enums
 @using JobTracker.Core.Extensions
 @using JobTracker.Web.Components.Applications
+@implements IDisposable
 @inject IApplicationService ApplicationService
+@inject ISkillExtractor SkillExtractor
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject NavigationManager Navigation
 
 <PageTitle>Applications</PageTitle>
 
 <div class="d-flex flex-wrap align-center justify-space-between gap-2 mb-4">
     <div>
         <MudText Typo="Typo.h4">Applications</MudText>
-        <MudText Typo="Typo.body2">Every job you have applied for or saved for later.</MudText>
+        <MudText Typo="Typo.body2">Every job you have applied for or saved for later. Click a row to see its details.</MudText>
     </div>
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddAsync">
         Add application
@@ -28,7 +32,7 @@ else if (_error != null)
 {
     <MudAlert Severity="Severity.Error">@_error</MudAlert>
 }
-else if (_applications.Count == 0)
+else if (_totalCount == 0)
 {
     <MudPaper Class="pa-8 d-flex flex-column align-center gap-2" Elevation="0" Outlined="true">
         <MudIcon Icon="@Icons.Material.Filled.WorkOutline" Size="Size.Large" Color="Color.Secondary" />
@@ -38,36 +42,123 @@ else if (_applications.Count == 0)
 }
 else
 {
-    <MudTable Items="_applications" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Elevation="1">
-        <HeaderContent>
-            <MudTh>Role</MudTh>
-            <MudTh>Company</MudTh>
-            <MudTh>Status</MudTh>
-            <MudTh>Location</MudTh>
-            <MudTh>Applied</MudTh>
-            <MudTh Style="text-align:right">Actions</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Role">@context.RoleTitle</MudTd>
-            <MudTd DataLabel="Company">@context.Company?.Name</MudTd>
-            <MudTd DataLabel="Status">
-                <MudChip T="string" Size="Size.Small" Color="StatusColor(context.Status)" Variant="Variant.Text">@context.Status.ToDisplayText()</MudChip>
-            </MudTd>
-            <MudTd DataLabel="Location">@context.Location (@context.WorkMode.ToDisplayText())</MudTd>
-            <MudTd DataLabel="Applied">@(context.DateApplied?.ToString("d MMM yyyy") ?? "Not yet")</MudTd>
-            <MudTd DataLabel="Actions" Style="text-align:right">
-                <MudTooltip Text="Edit">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditAsync(context)" />
-                </MudTooltip>
-                <MudTooltip Text="Delete">
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteAsync(context)" />
-                </MudTooltip>
-            </MudTd>
-        </RowTemplate>
-    </MudTable>
+    @* ---------- Search and filters (S2) ---------- *@
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudGrid Spacing="2">
+            <MudItem xs="12" md="6">
+                <MudTextField T="string" @bind-Value="_searchText" Label="Search" Placeholder="Role, company or notes"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                              Immediate="true" DebounceInterval="300" OnDebounceIntervalElapsed="OnSearchChangedAsync"
+                              Clearable="true" OnClearButtonClick="OnSearchClearedAsync" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudTextField T="string" @bind-Value="_location" Label="Location" Placeholder="e.g. Sydney"
+                              Immediate="true" DebounceInterval="300" OnDebounceIntervalElapsed="OnSearchChangedAsync" Clearable="true"
+                              OnClearButtonClick="OnSearchClearedAsync" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="string" Label="Skill" Value="_skill" ValueChanged="OnSkillChangedAsync" Clearable="true">
+                    @foreach (string skill in _skillOptions)
+                    {
+                        <MudSelectItem T="string" Value="skill">@skill</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="4">
+                <MudSelect T="ApplicationStatus" Label="Status" MultiSelection="true"
+                           SelectedValues="_statuses" SelectedValuesChanged="OnStatusesChangedAsync"
+                           MultiSelectionTextFunc="@(values => JoinSelected(values))">
+                    @foreach (ApplicationStatus status in Enum.GetValues<ApplicationStatus>())
+                    {
+                        <MudSelectItem T="ApplicationStatus" Value="status">@status.ToDisplayText()</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="ApplicationSource" Label="Source" MultiSelection="true"
+                           SelectedValues="_sources" SelectedValuesChanged="OnSourcesChangedAsync"
+                           MultiSelectionTextFunc="@(values => JoinSelected(values))">
+                    @foreach (ApplicationSource source in Enum.GetValues<ApplicationSource>())
+                    {
+                        <MudSelectItem T="ApplicationSource" Value="source">@source.ToDisplayText()</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="WorkMode" Label="Work mode" MultiSelection="true"
+                           SelectedValues="_workModes" SelectedValuesChanged="OnWorkModesChangedAsync"
+                           MultiSelectionTextFunc="@(values => JoinSelected(values))">
+                    @foreach (WorkMode workMode in Enum.GetValues<WorkMode>())
+                    {
+                        <MudSelectItem T="WorkMode" Value="workMode">@workMode.ToDisplayText()</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" md="8">
+                <MudText Typo="Typo.caption">
+                    Minimum salary: @(_minimumSalary == 0 ? "any" : $"${_minimumSalary / 1000}k or more")
+                </MudText>
+                <MudSlider T="int" Value="_minimumSalary" ValueChanged="OnSalaryChangedAsync"
+                           Min="0" Max="@MaxSalarySlider" Step="5000" Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="12" md="4" Class="d-flex align-center justify-end gap-2">
+                <MudText Typo="Typo.body2">Showing @_results.Count of @_totalCount</MudText>
+                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.FilterAltOff"
+                           Disabled="BuildFilter().IsEmpty" OnClick="ClearFiltersAsync">Clear filters</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    @* ---------- Results ---------- *@
+    @if (_results.Count == 0)
+    {
+        <MudPaper Class="pa-8 d-flex flex-column align-center gap-2" Elevation="0" Outlined="true">
+            <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Color="Color.Secondary" />
+            <MudText Typo="Typo.h6">No applications match these filters</MudText>
+            <MudButton Variant="Variant.Outlined" OnClick="ClearFiltersAsync">Clear filters</MudButton>
+        </MudPaper>
+    }
+    else
+    {
+        <MudTable T="JobApplication" Items="_results" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Elevation="1"
+                  OnRowClick="OnRowClick" RowStyleFunc="@((_, _) => "cursor:pointer;")">
+            <HeaderContent>
+                <MudTh><MudTableSortLabel T="JobApplication" SortBy="@(application => application.RoleTitle)">Role</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel T="JobApplication" SortBy="@(application => application.Company!.Name)">Company</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel T="JobApplication" SortBy="@(application => application.Status)">Status</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel T="JobApplication" SortBy="@(application => application.Location)">Location</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel T="JobApplication" SortBy="@(application => application.SalaryMax ?? application.SalaryMin ?? 0)">Salary</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel T="JobApplication" InitialDirection="SortDirection.Descending"
+                                          SortBy="@(application => application.DateApplied ?? DateTime.MaxValue)">Applied</MudTableSortLabel></MudTh>
+                <MudTh Style="text-align:right">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Role">@context.RoleTitle</MudTd>
+                <MudTd DataLabel="Company">@context.Company?.Name</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Size="Size.Small" Color="StatusColor(context.Status)" Variant="Variant.Text">@context.Status.ToDisplayText()</MudChip>
+                </MudTd>
+                <MudTd DataLabel="Location">@context.Location (@context.WorkMode.ToDisplayText())</MudTd>
+                <MudTd DataLabel="Salary">@SalaryText(context)</MudTd>
+                <MudTd DataLabel="Applied">@(context.DateApplied?.ToString("d MMM yyyy") ?? "Not yet")</MudTd>
+                <MudTd DataLabel="Actions" Style="text-align:right">
+                    <MudTooltip Text="Edit">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditAsync(context)" />
+                    </MudTooltip>
+                    <MudTooltip Text="Delete">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteAsync(context)" />
+                    </MudTooltip>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
 }
 
 @code {
+    private const int MaxSalarySlider = 200_000;
+
     private static readonly DialogOptions FormOptions = new DialogOptions
     {
         MaxWidth = MaxWidth.Medium,
@@ -76,21 +167,46 @@ else
         BackdropClick = false
     };
 
-    private IReadOnlyList<JobApplication> _applications = Array.Empty<JobApplication>();
+    private IReadOnlyList<JobApplication> _results = Array.Empty<JobApplication>();
+    private IReadOnlyList<string> _skillOptions = Array.Empty<string>();
+    private int _totalCount;
     private bool _loading = true;
     private string? _error;
 
+    // Filter state, bound to the controls above.
+    private string? _searchText;
+    private string? _location;
+    private string? _skill;
+    private IEnumerable<ApplicationStatus> _statuses = new HashSet<ApplicationStatus>();
+    private IEnumerable<ApplicationSource> _sources = new HashSet<ApplicationSource>();
+    private IEnumerable<WorkMode> _workModes = new HashSet<WorkMode>();
+    private int _minimumSalary;
+
     protected override async Task OnInitializedAsync()
     {
+        ApplicationService.ApplicationsChanged += OnApplicationsChanged;
         await LoadAsync();
     }
 
+    /// <summary>Loads the total count and skill list, then applies the current filters.</summary>
     private async Task LoadAsync()
     {
         try
         {
             _error = null;
-            _applications = await ApplicationService.GetAllAsync();
+            IReadOnlyList<JobApplication> all = await ApplicationService.GetAllAsync();
+            _totalCount = all.Count;
+
+            // The skill dropdown lists every skill that appears in at least one job description, most common first.
+            _skillOptions = all
+                .SelectMany(application => SkillsIn(application).Distinct())
+                .GroupBy(skill => skill)
+                .OrderByDescending(group => group.Count())
+                .ThenBy(group => group.Key)
+                .Select(group => group.Key)
+                .ToList();
+
+            await ApplyFiltersAsync();
         }
         catch (Exception ex)
         {
@@ -102,6 +218,95 @@ else
         }
     }
 
+    /// <summary>Asks the service for the matching applications. All filters combine (AND).</summary>
+    private async Task ApplyFiltersAsync()
+    {
+        try
+        {
+            // The skill is left out of the service search and matched below instead.
+            ApplicationFilter filter = BuildFilter();
+            filter.Skill = null;
+            IReadOnlyList<JobApplication> matches = await ApplicationService.SearchAsync(filter);
+
+            // Skills are matched with Adam's skill extractor, so "java" does not match "javascript".
+            _results = string.IsNullOrEmpty(_skill)
+                ? matches
+                : matches.Where(application => SkillsIn(application).Contains(_skill)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not search: {ex.Message}", Severity.Error);
+        }
+    }
+
+    /// <summary>The current filter controls as an ApplicationFilter.</summary>
+    private ApplicationFilter BuildFilter() => new ApplicationFilter
+    {
+        SearchText = _searchText,
+        Location = _location,
+        Statuses = _statuses.ToList(),
+        Sources = _sources.ToList(),
+        WorkModes = _workModes.ToList(),
+        MinimumSalary = _minimumSalary > 0 ? _minimumSalary : null,
+        Skill = _skill
+    };
+
+    private IReadOnlyList<string> SkillsIn(JobApplication application) => SkillExtractor.Extract(application.JobDescription);
+
+    private Task OnSearchChangedAsync(string _) => ApplyFiltersAsync();
+
+    private Task OnSearchClearedAsync(MouseEventArgs _) => ApplyFiltersAsync();
+
+    private async Task OnSkillChangedAsync(string? skill)
+    {
+        _skill = skill;
+        await ApplyFiltersAsync();
+    }
+
+    private async Task OnStatusesChangedAsync(IEnumerable<ApplicationStatus> statuses)
+    {
+        _statuses = statuses;
+        await ApplyFiltersAsync();
+    }
+
+    private async Task OnSourcesChangedAsync(IEnumerable<ApplicationSource> sources)
+    {
+        _sources = sources;
+        await ApplyFiltersAsync();
+    }
+
+    private async Task OnWorkModesChangedAsync(IEnumerable<WorkMode> workModes)
+    {
+        _workModes = workModes;
+        await ApplyFiltersAsync();
+    }
+
+    private async Task OnSalaryChangedAsync(int salary)
+    {
+        _minimumSalary = salary;
+        await ApplyFiltersAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _searchText = null;
+        _location = null;
+        _skill = null;
+        _statuses = new HashSet<ApplicationStatus>();
+        _sources = new HashSet<ApplicationSource>();
+        _workModes = new HashSet<WorkMode>();
+        _minimumSalary = 0;
+        await ApplyFiltersAsync();
+    }
+
+    private void OnRowClick(TableRowClickEventArgs<JobApplication> args)
+    {
+        if (args.Item != null)
+        {
+            Navigation.NavigateTo($"/applications/{args.Item.Id}");
+        }
+    }
+
     private async Task AddAsync()
     {
         IDialogReference dialog = await DialogService.ShowAsync<ApplicationFormDialog>("Add application", FormOptions);
@@ -109,7 +314,6 @@ else
         if (result is { Canceled: false })
         {
             Snackbar.Add("Application added.", Severity.Success);
-            await LoadAsync();
         }
     }
 
@@ -121,7 +325,6 @@ else
         if (result is { Canceled: false })
         {
             Snackbar.Add("Changes saved.", Severity.Success);
-            await LoadAsync();
         }
     }
 
@@ -151,11 +354,37 @@ else
         {
             Snackbar.Add($"Could not delete: {ex.Message}", Severity.Error);
         }
-
-        await LoadAsync();
     }
 
-    /// <summary>Green for good news, red for endings, grey for open stages.</summary>
+    /// <summary>The service raises this after every change (add, edit, delete); reload on the UI thread.</summary>
+    private void OnApplicationsChanged(object? sender, ApplicationChangedEventArgs e)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        ApplicationService.ApplicationsChanged -= OnApplicationsChanged;
+    }
+
+    /// <summary>The selected values of a multi-select, as display text, e.g. "Applied, Final round".</summary>
+    private static string JoinSelected(List<string?>? values) =>
+        values == null || values.Count == 0 ? string.Empty : string.Join(", ", values);
+
+    /// <summary>"$85k–$95k", "$90k", or a dash when the ad gave no salary.</summary>
+    private static string SalaryText(JobApplication application) => (application.SalaryMin, application.SalaryMax) switch
+    {
+        (decimal min, decimal max) when min != max => $"${min / 1000:0}k–${max / 1000:0}k",
+        (decimal min, _) => $"${min / 1000:0}k",
+        (null, decimal max) => $"${max / 1000:0}k",
+        _ => "–"
+    };
+
+    /// <summary>Green for good news, red for endings, blue for interviews, grey for the rest.</summary>
     private static Color StatusColor(ApplicationStatus status) => status switch
     {
         ApplicationStatus.Offer or ApplicationStatus.Accepted => Color.Success,
