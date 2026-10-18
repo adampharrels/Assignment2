@@ -1,7 +1,7 @@
 using JobTracker.Analytics.Text;
 using JobTracker.Core.Enums;
 
-namespace JobTracker.Tests.A3;
+namespace JobTracker.Tests.Analytics.Text;
 
 [TestFixture]
 public class DictionarySkillExtractorTests

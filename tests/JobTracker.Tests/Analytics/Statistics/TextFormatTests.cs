@@ -1,7 +1,7 @@
 using System.Globalization;
 using JobTracker.Analytics.Statistics;
 
-namespace JobTracker.Tests.A1;
+namespace JobTracker.Tests.Analytics.Statistics;
 
 [TestFixture]
 public class TextFormatTests

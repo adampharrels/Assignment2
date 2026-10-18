@@ -2,9 +2,8 @@ using JobTracker.Analytics.Demo;
 using JobTracker.Analytics.MachineLearning;
 using JobTracker.Analytics.Text;
 using JobTracker.Core.Analytics;
-using JobTracker.Tests.A1;
 
-namespace JobTracker.Tests.A4;
+namespace JobTracker.Tests.Analytics.MachineLearning;
 
 [TestFixture]
 public class InterviewPredictorTests

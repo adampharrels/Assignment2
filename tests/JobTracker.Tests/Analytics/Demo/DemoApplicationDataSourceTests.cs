@@ -1,7 +1,7 @@
 using JobTracker.Analytics.Demo;
 using JobTracker.Core.Analytics;
 
-namespace JobTracker.Tests.K1;
+namespace JobTracker.Tests.Analytics.Demo;
 
 [TestFixture]
 public class DemoApplicationDataSourceTests

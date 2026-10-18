@@ -1,9 +1,8 @@
 using JobTracker.Analytics.Insights;
 using JobTracker.Analytics.Statistics;
 using JobTracker.Core.Analytics;
-using JobTracker.Tests.A1;
 
-namespace JobTracker.Tests.A5;
+namespace JobTracker.Tests.Analytics.Insights;
 
 [TestFixture]
 public class InsightTests

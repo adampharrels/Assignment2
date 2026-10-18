@@ -3,7 +3,7 @@ using JobTracker.Core.Entities;
 using JobTracker.Data;
 using JobTracker.Data.Services;
 
-namespace JobTracker.Tests.K1;
+namespace JobTracker.Tests.Data.Services;
 
 [TestFixture]
 public class ProfileServiceTests
