@@ -1,3 +1,4 @@
+using JobTracker.Core.Companies;
 using JobTracker.Core.Entities;
 
 namespace JobTracker.Core.Interfaces;
@@ -27,4 +28,10 @@ public interface ICompanyService
 
     /// <summary>Finds a company by trimmed, case-insensitive name, or creates it for an application form.</summary>
     Task<Company> GetOrCreateAsync(string name, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns every company ordered by name, with its applications, application count and best stage
+    /// reached (G4). Companies without applications are included with an empty list.
+    /// </summary>
+    Task<IReadOnlyList<CompanySummary>> GetSummariesAsync(CancellationToken cancellationToken = default);
 }
