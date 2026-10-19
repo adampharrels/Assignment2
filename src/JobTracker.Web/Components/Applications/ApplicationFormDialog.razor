@@ -13,7 +13,7 @@
         }
         else
         {
-            <EditForm Model="_model" OnValidSubmit="SaveAsync">
+            <EditForm Model="_model" OnSubmit="SubmitAsync">
                 <DataAnnotationsValidator />
 
                 @if (_error != null)
@@ -202,15 +202,24 @@
         }
     }
 
+    /// <summary>
+    /// Checks the field rules and the company together, so every problem shows at once (the company is not
+    /// part of the model, so the validator alone would only flag it after the other fields pass).
+    /// </summary>
+    private async Task SubmitAsync(EditContext editContext)
+    {
+        bool fieldsValid = editContext.Validate();
+        _companyError = string.IsNullOrWhiteSpace(_companyName) ? "Company is required." : null;
+        if (fieldsValid && _companyError == null)
+        {
+            await SaveAsync();
+        }
+    }
+
     /// <summary>Runs after the field rules pass. The service checks everything again and creates the company if it is new.</summary>
     private async Task SaveAsync()
     {
         _error = null;
-        _companyError = string.IsNullOrWhiteSpace(_companyName) ? "Company is required." : null;
-        if (_companyError != null)
-        {
-            return;
-        }
 
         _saving = true;
         try
