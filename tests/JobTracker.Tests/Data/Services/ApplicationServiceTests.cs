@@ -21,6 +21,15 @@ public class ApplicationServiceTests
         _database = new TestDatabase();
         await DatabaseInitializer.InitializeAsync(_database);
         _service = new ApplicationService(_database);
+        await RemoveSeedApplicationsAsync();
+    }
+
+    /// <summary>Starts from an empty applications table: the initializer now saves the G1 demo applications.</summary>
+    private async Task RemoveSeedApplicationsAsync()
+    {
+        await using JobTrackerDbContext context = _database.CreateDbContext();
+        context.Applications.RemoveRange(await context.Applications.Include(application => application.StageHistory).ToListAsync());
+        await context.SaveChangesAsync();
     }
 
     [TearDown]

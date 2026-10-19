@@ -1,5 +1,6 @@
 using JobTracker.Core.Entities;
 using JobTracker.Core.Enums;
+using JobTracker.Core.Extensions;
 using JobTracker.Data.Seed;
 using Microsoft.EntityFrameworkCore;
 using S = JobTracker.Data.Seed.SeedStatus;
@@ -17,7 +18,8 @@ namespace JobTracker.Data;
 /// do better than cloud, security and Java roles, and Seek applications rarely hear back.
 /// Applications cannot be stored yet because the application entity is K2's. Until then they reach
 /// the analytics through SeedApplicationDataSource, and the seeded interviews refer to them by Id.
-/// TODO (K2, Sarah): save CreateApplications() (keeping the Ids) and their histories before the interviews.
+/// The applications (with their Ids and stage histories) are saved by AddDemoDataAsync (K2, Sarah), so every
+/// screen and the analytics read the same data from the database.
 /// </remarks>
 public static class SeedData
 {
@@ -145,10 +147,77 @@ public static class SeedData
             context.Companies.AddRange(CreateCompanies());
         }
 
+        // K2 (Sarah): save the demo applications with their fixed Ids and full stage histories, so the
+        // board, list, details page, dashboard and analytics all read the same data.
+        if (!await context.Applications.AnyAsync(cancellationToken))
+        {
+            await AddDemoApplicationsAsync(context, cancellationToken);
+        }
+
         if (!await context.Interviews.AnyAsync(cancellationToken))
         {
             context.Interviews.AddRange(CreateInterviews());
         }
+    }
+
+    /// <summary>
+    /// Adds CreateApplications() to the context as JobApplication entities (K2, Sarah), linking each one to its
+    /// company by name. Companies are taken from the context, so this works on the first run (when the demo
+    /// companies were just added) and on a database that already had companies.
+    /// </summary>
+    private static async Task AddDemoApplicationsAsync(JobTrackerDbContext context, CancellationToken cancellationToken)
+    {
+        // Companies added in this run are still only in the change tracker, so look there as well as in the database.
+        Dictionary<string, Company> companies = context.ChangeTracker.Entries<Company>()
+            .Select(entry => entry.Entity)
+            .Concat(await context.Companies.ToListAsync(cancellationToken))
+            .GroupBy(company => company.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (SeedApplication seed in CreateApplications())
+        {
+            if (!companies.TryGetValue(seed.CompanyName, out Company? company))
+            {
+                company = new Company { Name = seed.CompanyName };
+                companies[company.Name] = company;
+                context.Companies.Add(company);
+            }
+
+            context.Applications.Add(ToApplication(seed, company));
+        }
+    }
+
+    /// <summary>Copies one seed application into the K2 entity. The seed statuses use the same numbers as ApplicationStatus.</summary>
+    private static JobApplication ToApplication(SeedApplication seed, Company company)
+    {
+        ApplicationEnumExtensions.TryParseWorkMode(seed.WorkMode, out WorkMode workMode);
+        ApplicationEnumExtensions.TryParseSource(seed.Source, out ApplicationSource source);
+
+        return new JobApplication
+        {
+            Id = seed.Id,
+            Company = company,
+            RoleTitle = seed.RoleTitle,
+            Location = seed.Location,
+            WorkMode = workMode,
+            Source = source,
+            Status = (ApplicationStatus)(int)seed.Status,
+            SalaryMin = seed.SalaryMin,
+            SalaryMax = seed.SalaryMax,
+            JobDescription = seed.JobDescription,
+            DatePosted = seed.DatePosted,
+            DateApplied = seed.DateApplied,
+            HadReferral = seed.HadReferral,
+            TailoredResume = seed.TailoredResume,
+            WroteCoverLetter = seed.WroteCoverLetter,
+            Notes = seed.Notes,
+            StageHistory = seed.History.Select(stageEvent => new StageEvent
+            {
+                FromStatus = stageEvent.FromStatus.HasValue ? (ApplicationStatus)(int)stageEvent.FromStatus.Value : null,
+                ToStatus = (ApplicationStatus)(int)stageEvent.ToStatus,
+                ChangedAt = stageEvent.ChangedAt
+            }).ToList()
+        };
     }
 
     /// <summary>Returns new instances of the 15 demo companies, ordered by name.</summary>

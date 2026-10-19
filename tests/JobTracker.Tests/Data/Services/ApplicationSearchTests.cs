@@ -3,6 +3,7 @@ using JobTracker.Core.Enums;
 using JobTracker.Core.Interfaces;
 using JobTracker.Data;
 using JobTracker.Data.Services;
+using Microsoft.EntityFrameworkCore;
 using JobTracker.Tests.Data;
 
 namespace JobTracker.Tests.Data.Services;
@@ -19,11 +20,20 @@ public class ApplicationSearchTests
         _database = new TestDatabase();
         await DatabaseInitializer.InitializeAsync(_database);
         _service = new ApplicationService(_database);
+        await RemoveSeedApplicationsAsync();
 
         await AddAsync("Graduate Frontend Engineer", "Canva", "Sydney", WorkMode.Hybrid, ApplicationSource.LinkedIn, 85_000, 95_000, notes: "Met them at the career fair");
         await AddAsync("Graduate Data Analyst", "NAB", "Melbourne", WorkMode.OnSite, ApplicationSource.Seek, 70_000, 75_000);
         await AddAsync("Graduate Backend Engineer", "Atlassian", "Remote", WorkMode.Remote, ApplicationSource.Referral, null, 110_000);
         await AddAsync("Graduate Cloud Engineer", "Telstra", "Sydney", WorkMode.OnSite, ApplicationSource.Seek, null, null);
+    }
+
+    /// <summary>Starts from an empty applications table: the initializer now saves the G1 demo applications.</summary>
+    private async Task RemoveSeedApplicationsAsync()
+    {
+        await using JobTrackerDbContext context = _database.CreateDbContext();
+        context.Applications.RemoveRange(await context.Applications.Include(application => application.StageHistory).ToListAsync());
+        await context.SaveChangesAsync();
     }
 
     [TearDown]
