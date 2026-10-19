@@ -1,0 +1,327 @@
+@page "/import-export"
+@* Owner: Grace (G5). Import applications from a CSV or JSON file, and download them as CSV or JSON.
+   Bad rows are listed with their row numbers; the good rows are still imported. *@
+@using JobTracker.Core.Enums
+@using JobTracker.Core.Extensions
+@using JobTracker.Data.ImportExport
+@using JobTracker.Data.Services
+@implements IAsyncDisposable
+@inject ImportExportService ImportExport
+@inject IApplicationService ApplicationService
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<PageTitle>Import &amp; export</PageTitle>
+
+<div class="mb-4">
+    <MudText Typo="Typo.h4">Import &amp; export</MudText>
+    <MudText Typo="Typo.body2">Bring in your existing spreadsheet, or download everything as a backup.</MudText>
+</div>
+
+<MudGrid Spacing="3">
+    @* ---------- Import ---------- *@
+    <MudItem xs="12" md="7">
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.h6" Class="mb-1">Import</MudText>
+            <MudText Typo="Typo.body2" Class="mb-3">
+                Choose a <b>.csv</b> file (from Excel or Google Sheets) or a <b>.json</b> backup from this app.
+                Every row is checked: good rows are added, and any problems are listed with their row numbers.
+                Applications already in your tracker are skipped.
+            </MudText>
+
+            <div class="d-flex flex-wrap align-center gap-2 mb-3">
+                <MudFileUpload T="IBrowserFile" Accept=".csv,.json" FilesChanged="ImportAsync" Disabled="_importing">
+                    <ActivatorContent>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.UploadFile" Disabled="_importing">
+                            @(_importing ? "Importing…" : "Choose file to import")
+                        </MudButton>
+                    </ActivatorContent>
+                </MudFileUpload>
+                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Download" OnClick="DownloadTemplateAsync">
+                    CSV template
+                </MudButton>
+            </div>
+
+            @if (_importing)
+            {
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-3" />
+            }
+
+            @if (_result != null)
+            {
+                @if (_result.FileError != null)
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-3">
+                        <b>@_fileName</b> could not be read, so nothing was imported. @_result.FileError
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudAlert Severity="@ResultSeverity" Class="mb-3"><b>@_fileName</b>: @SummaryText(_result)</MudAlert>
+
+                    @if (_result.Errors.Count > 0)
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mb-1">Rows not imported</MudText>
+                        <MudText Typo="Typo.caption" Class="mb-2 d-block">Fix these rows in your file and import it again. Rows that were added are skipped next time.</MudText>
+                        <MudTable T="ImportRowError" Items="_result.Errors" Dense="true" Elevation="0" Outlined="true" Class="mb-3"
+                                  Breakpoint="Breakpoint.Xs" FixedHeader="true" Height="@(_result.Errors.Count > 8 ? "320px" : null)">
+                            <HeaderContent>
+                                <MudTh Style="width:80px">Row</MudTh>
+                                <MudTh>Problem</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Row">@context.RowNumber</MudTd>
+                                <MudTd DataLabel="Problem">@context.Message</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+
+                    @if (_result.Skipped.Count > 0)
+                    {
+                        <MudExpansionPanels Elevation="0" Outlined="true">
+                            <MudExpansionPanel Text="@($"Skipped rows ({_result.Skipped.Count})")">
+                                @foreach (ImportRowError skipped in _result.Skipped)
+                                {
+                                    <MudText Typo="Typo.body2">Row @skipped.RowNumber: @skipped.Message</MudText>
+                                }
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    }
+                }
+            }
+
+            <MudDivider Class="my-4" />
+
+            <MudText Typo="Typo.subtitle2" Class="mb-1">What the file needs</MudText>
+            <MudText Typo="Typo.body2">
+                The first row holds the headings. <b>Company</b>, <b>Role</b> and <b>Location</b> are required; every other column is optional.
+                Headings are matched ignoring case and spaces, and unknown columns are ignored.
+            </MudText>
+            <MudSimpleTable Dense="true" Elevation="0" Class="mt-2">
+                <tbody>
+                    <tr><td>Columns</td><td>@string.Join(", ", ApplicationColumns.All.Select(column => column.Header))</td></tr>
+                    <tr><td>Status</td><td>@string.Join(", ", Enum.GetValues<ApplicationStatus>().Select(status => status.ToDisplayText())) (blank: Applied if there is an applied date, otherwise Wishlist)</td></tr>
+                    <tr><td>Source</td><td>@string.Join(", ", Enum.GetValues<ApplicationSource>().Select(source => source.ToDisplayText()))</td></tr>
+                    <tr><td>Work mode</td><td>@string.Join(", ", Enum.GetValues<WorkMode>().Select(mode => mode.ToDisplayText()))</td></tr>
+                    <tr><td>Dates</td><td>YYYY-MM-DD or DD/MM/YYYY. The applied date is required for anything past Wishlist.</td></tr>
+                    <tr><td>Yes/no columns</td><td>Yes, No, true, false, 1, 0 (blank means No)</td></tr>
+                </tbody>
+            </MudSimpleTable>
+        </MudPaper>
+    </MudItem>
+
+    @* ---------- Export ---------- *@
+    <MudItem xs="12" md="5">
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.h6" Class="mb-1">Export</MudText>
+            @if (_countError != null)
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-3">@_countError</MudAlert>
+            }
+            else if (_applicationCount == 0)
+            {
+                <MudText Typo="Typo.body2" Class="mb-3">
+                    There are no applications to export yet. Add some, or import a file first.
+                </MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mb-3">
+                    Download all @Plural(_applicationCount ?? 0, "application"). <b>CSV</b> opens in Excel or Google Sheets;
+                    <b>JSON</b> is a backup. Both can be imported here again.
+                </MudText>
+            }
+
+            <div class="d-flex flex-column gap-2">
+                @foreach (ApplicationFileFormat format in ImportExport.Formats)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
+                               Disabled="@(_exporting || _applicationCount is null or 0)" OnClick="() => ExportAsync(format)">
+                        Download @format.Name
+                    </MudButton>
+                }
+            </div>
+
+            <MudText Typo="Typo.caption" Class="mt-3 d-block">
+                Exports hold each application's details and current status. Stage history and interviews are not included;
+                imported applications start a new history from their status.
+            </MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    /// <summary>The largest file that can be imported: 2 MB holds thousands of applications.</summary>
+    private const long MaxFileSize = 2 * 1024 * 1024;
+
+    private IJSObjectReference? _module;
+    private ImportResult? _result;
+    private string? _fileName;
+    private int? _applicationCount;
+    private string? _countError;
+    private bool _importing;
+    private bool _exporting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCountAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Pages/ImportExportPage.razor.js");
+        }
+    }
+
+    /// <summary>How many applications there are, to enable the export buttons.</summary>
+    private async Task LoadCountAsync()
+    {
+        try
+        {
+            _countError = null;
+            _applicationCount = (await ApplicationService.GetAllAsync()).Count;
+        }
+        catch (Exception ex)
+        {
+            _countError = $"Could not load applications: {ex.Message}";
+        }
+    }
+
+    /// <summary>Reads the chosen file, imports it and shows what happened.</summary>
+    private async Task ImportAsync(IBrowserFile? file)
+    {
+        if (file == null)
+        {
+            return;
+        }
+
+        _fileName = file.Name;
+        _result = null;
+
+        ApplicationFileFormat? format = ImportExport.FindFormat(file.Name);
+        if (format == null)
+        {
+            _result = new ImportResult(0, Array.Empty<ImportRowError>(), Array.Empty<ImportRowError>(),
+                "Only .csv and .json files can be imported.");
+            return;
+        }
+
+        if (file.Size > MaxFileSize)
+        {
+            _result = new ImportResult(0, Array.Empty<ImportRowError>(), Array.Empty<ImportRowError>(),
+                $"The file is {file.Size / 1024 / 1024.0:0.#} MB; the limit is {MaxFileSize / 1024 / 1024} MB.");
+            return;
+        }
+
+        _importing = true;
+        try
+        {
+            using var reader = new StreamReader(file.OpenReadStream(MaxFileSize));
+            string content = await reader.ReadToEndAsync();
+            _result = await ImportExport.ImportAsync(format, content);
+
+            if (_result.Imported > 0)
+            {
+                Snackbar.Add($"Imported {Plural(_result.Imported, "application")}.", Severity.Success);
+            }
+
+            await LoadCountAsync();
+        }
+        catch (Exception ex)
+        {
+            _result = new ImportResult(0, Array.Empty<ImportRowError>(), Array.Empty<ImportRowError>(), ex.Message);
+        }
+        finally
+        {
+            _importing = false;
+        }
+    }
+
+    /// <summary>Builds the export on the server and hands it to the browser to save.</summary>
+    private async Task ExportAsync(ApplicationFileFormat format)
+    {
+        _exporting = true;
+        try
+        {
+            ExportFile file = await ImportExport.ExportAsync(format);
+            await DownloadAsync(file);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not export: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _exporting = false;
+        }
+    }
+
+    private async Task DownloadTemplateAsync()
+    {
+        try
+        {
+            await DownloadAsync(ImportExport.CreateTemplate(new CsvApplicationFormat()));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not download the template: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DownloadAsync(ExportFile file)
+    {
+        if (_module == null)
+        {
+            Snackbar.Add("The page is still loading. Try again in a moment.", Severity.Warning);
+            return;
+        }
+
+        await _module.InvokeVoidAsync("downloadFile", file.FileName, file.ContentType, file.Content);
+    }
+
+    /// <summary>"Imported 12 applications, skipped 2 already in your tracker, 3 rows had problems."</summary>
+    private static string SummaryText(ImportResult result)
+    {
+        var parts = new List<string> { $"imported {Plural(result.Imported, "application")}" };
+        if (result.Skipped.Count > 0)
+        {
+            parts.Add($"skipped {result.Skipped.Count} already in your tracker");
+        }
+
+        if (result.Errors.Count > 0)
+        {
+            parts.Add($"{Plural(result.Errors.Count, "row")} had problems");
+        }
+
+        return string.Join(", ", parts) + ".";
+    }
+
+    /// <summary>Green when everything went in, orange when some rows failed, red when nothing did, blue when all were skipped.</summary>
+    private Severity ResultSeverity => _result switch
+    {
+        { Errors.Count: 0, Imported: > 0 } => Severity.Success,
+        { Imported: > 0 } => Severity.Warning,
+        { Errors.Count: > 0 } => Severity.Error,
+        _ => Severity.Info
+    };
+
+    /// <summary>"1 application", "3 applications".</summary>
+    private static string Plural(int count, string noun) => count == 1 ? $"1 {noun}" : $"{count} {noun}s";
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module != null)
+        {
+            try
+            {
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The browser has already gone; nothing to clean up.
+            }
+        }
+    }
+}
