@@ -1,0 +1,164 @@
+@using System.ComponentModel.DataAnnotations
+@using JobTracker.Core.Calendar
+@using JobTracker.Core.Entities
+@using JobTracker.Core.Enums
+@inject IInterviewService Interviews
+@inject IApplicationDataSource Applications
+@inject IDialogService Dialogs
+@inject ILogger<InterviewDialog> Logger
+
+<MudDialog>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
+        }
+        @if (_ready)
+        {
+            <MudText Typo="Typo.body2" Class="mb-3">Enter Sydney time (AEST/AEDT). Daylight saving is applied automatically.</MudText>
+            @if (_applications.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info">No applications are available. Add an application before scheduling an interview.</MudAlert>
+            }
+            <MudForm @ref="_form" Disabled="_busy">
+                <MudSelect T="int" Label="Application" @bind-Value="_model.ApplicationId" Required="true">
+                    <MudSelectItem T="int" Value="0" Disabled="true">Choose an application</MudSelectItem>
+                    @foreach (var application in _applications)
+                    {
+                        <MudSelectItem T="int" Value="application.Id">@application.CompanyName · @application.RoleTitle (#@application.Id)</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="InterviewType" Label="Interview type" @bind-Value="_model.Type">
+                    @foreach (var type in Enum.GetValues<InterviewType>())
+                    {
+                        <MudSelectItem T="InterviewType" Value="type">@TypeLabel(type)</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudDatePicker Label="Date (Sydney)" @bind-Date="_date" Required="true" Editable="true" DateFormat="dd/MM/yyyy" />
+                <MudTimePicker Label="Time (Sydney)" @bind-Time="_time" Required="true" Editable="true" AmPm="false" />
+                <MudNumericField T="int" Label="Duration (minutes)" @bind-Value="_model.DurationMinutes" Min="5" Max="600" Required="true" />
+                <MudTextField T="string" Label="Location or meeting link" @bind-Value="_model.LocationOrLink" />
+                <MudTextField T="string" Label="Interviewer" @bind-Value="_model.Interviewer" />
+                <MudTextField T="string" Label="Preparation notes" @bind-Value="_model.PrepNotes" Lines="3" />
+                <MudSelect T="InterviewOutcome" Label="Outcome" @bind-Value="_model.Outcome">
+                    @foreach (var outcome in Enum.GetValues<InterviewOutcome>())
+                    {
+                        <MudSelectItem T="InterviewOutcome" Value="outcome">@outcome</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudForm>
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (InterviewId.HasValue && _ready)
+        {
+            <MudButton Color="Color.Error" OnClick="DeleteAsync" Disabled="_busy">Delete</MudButton>
+        }
+        <MudButton OnClick="Cancel" Disabled="_busy">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync"
+                   Disabled="@(_busy || !_ready || _applications.Count == 0)">Save interview</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    /// <summary>The containing MudBlazor dialog.</summary>
+    [CascadingParameter] public IMudDialogInstance Dialog { get; set; } = null!;
+    /// <summary>An interview to edit, or null to create one.</summary>
+    [Parameter] public int? InterviewId { get; set; }
+    /// <summary>Optional preselected application, for the application details page.</summary>
+    [Parameter] public int? ApplicationId { get; set; }
+    /// <summary>Optional selected calendar day in Sydney time.</summary>
+    [Parameter] public DateTime? InitialDate { get; set; }
+
+    private MudForm? _form;
+    private Interview _model = new();
+    private IReadOnlyList<ApplicationRecord> _applications = Array.Empty<ApplicationRecord>();
+    private DateTime? _date;
+    private TimeSpan? _time;
+    private bool _loading = true, _busy, _ready;
+    private string? _error;
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _applications = (await Applications.GetApplicationsAsync()).OrderBy(item => item.CompanyName).ThenBy(item => item.RoleTitle).ToArray();
+            if (InterviewId.HasValue)
+                _model = await Interviews.GetByIdAsync(InterviewId.Value)
+                    ?? throw new KeyNotFoundException("This interview no longer exists. Close the dialog and refresh.");
+            else
+                _model.ApplicationId = ApplicationId ?? 0;
+            var local = InterviewId.HasValue ? SydneyTime.FromUtc(_model.ScheduledAt)
+                : (InitialDate ?? SydneyTime.FromUtc(DateTime.UtcNow)).Date.AddHours(9);
+            _date = local.Date;
+            _time = local.TimeOfDay;
+            _ready = true;
+        }
+        catch (KeyNotFoundException exception) { _error = exception.Message; }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Could not load interview dialog");
+            _error = "Could not load the interview. Close the dialog and try again.";
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _form is null) return;
+        await _form.Validate();
+        if (!_form.IsValid) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            if (_date is null || _time is null || _time < TimeSpan.Zero || _time >= TimeSpan.FromDays(1))
+                throw new ValidationException("Choose a valid date and time.");
+            _model.ScheduledAt = SydneyTime.ToUtc(_date.Value.Date.Add(_time.Value));
+            if (InterviewId.HasValue) await Interviews.UpdateAsync(_model);
+            else _model = await Interviews.CreateAsync(_model);
+            Dialog.Close(DialogResult.Ok(_model.Id));
+        }
+        catch (Exception exception) when (exception is ValidationException or InvalidOperationException or KeyNotFoundException)
+        { _error = exception.Message; }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Could not save interview");
+            _error = "Could not save the interview. Please try again.";
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            if (await Dialogs.ShowMessageBox("Delete interview?", "This removes the interview from your calendar.",
+                    yesText: "Delete", cancelText: "Keep interview") != true) return;
+            await Interviews.DeleteAsync(_model.Id);
+            Dialog.Close(DialogResult.Ok(_model.Id));
+        }
+        catch (KeyNotFoundException exception) { _error = exception.Message; }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Could not delete interview");
+            _error = "Could not delete the interview. Please try again.";
+        }
+        finally { _busy = false; }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+    private static string TypeLabel(InterviewType type) => type switch
+    {
+        InterviewType.AssessmentCentre => "Assessment centre",
+        InterviewType.FinalRound => "Final round",
+        _ => type.ToString()
+    };
+}

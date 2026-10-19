@@ -28,6 +28,7 @@ builder.Services.AddSingleton<IApplicationDataSource, SeedApplicationDataSource>
 builder.Services.AddSingleton<ISkillExtractor, DictionarySkillExtractor>();      // A3 (Adam)
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();            // A1-A5 (Adam)
 
+builder.Services.AddScoped<IInterviewService, InterviewService>();           // G3 (Grace)
 // G2: replace the demo adapter when S1 provides totals, history and its creation route.
 builder.Services.AddScoped<IDashboardApplicationSource, DemoDashboardApplicationSource>();
 builder.Services.AddScoped<DashboardService>();
