@@ -1,0 +1,376 @@
+@page "/companies"
+@* Owner: Grace (G4). Company notes and per-company stats: add, edit and delete companies, see how many
+   applications went to each one and the best stage reached. Click a row to see its notes and applications. *@
+@using JobTracker.Core.Companies
+@using JobTracker.Core.Entities
+@using JobTracker.Core.Enums
+@using JobTracker.Core.Extensions
+@using JobTracker.Web.Components.Companies
+@implements IDisposable
+@inject ICompanyService CompanyService
+@inject IApplicationService ApplicationService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Companies</PageTitle>
+
+<div class="d-flex flex-wrap align-center justify-space-between gap-2 mb-4">
+    <div>
+        <MudText Typo="Typo.h4">Companies</MudText>
+        <MudText Typo="Typo.body2">Notes on every company, with your applications to each one. Click a row to see more.</MudText>
+    </div>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddAsync">
+        Add company
+    </MudButton>
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_error != null)
+{
+    <MudAlert Severity="Severity.Error">
+        @_error
+        <MudButton Variant="Variant.Text" Size="Size.Small" Class="ml-2" OnClick="LoadAsync">Try again</MudButton>
+    </MudAlert>
+}
+else if (_summaries.Count == 0)
+{
+    <MudPaper Class="pa-8 d-flex flex-column align-center gap-2" Elevation="0" Outlined="true">
+        <MudIcon Icon="@Icons.Material.Filled.Business" Size="Size.Large" Color="Color.Secondary" />
+        <MudText Typo="Typo.h6">No companies yet</MudText>
+        <MudText Typo="Typo.body2">Add a company here, or add an application and its company is created for you.</MudText>
+    </MudPaper>
+}
+else
+{
+    @* ---------- Summary tiles ---------- *@
+    <MudGrid Spacing="2" Class="mb-4">
+        <MudItem xs="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.caption">Companies</MudText>
+                <MudText Typo="Typo.h5">@_summaries.Count</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.caption">Applied to</MudText>
+                <MudText Typo="Typo.h5">@_summaries.Count(summary => summary.ApplicationCount > 0)</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.caption">Reached an interview</MudText>
+                <MudText Typo="Typo.h5">@_summaries.Count(summary => summary.BestStage >= ApplicationStatus.Interview)</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.caption">Still in progress</MudText>
+                <MudText Typo="Typo.h5">@_summaries.Count(summary => summary.ActiveCount > 0)</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    @* ---------- Search ---------- *@
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <div class="d-flex flex-wrap align-center gap-4">
+            <MudTextField T="string" @bind-Value="_searchText" Label="Search" Placeholder="Name, industry or notes"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true" Clearable="true" Style="min-width:240px" Class="flex-grow-1" />
+            <MudSwitch T="bool" @bind-Value="_appliedOnly" Color="Color.Primary" Label="Only companies I applied to" />
+            <MudText Typo="Typo.body2">Showing @Visible.Count of @_summaries.Count</MudText>
+        </div>
+    </MudPaper>
+
+    @if (Visible.Count == 0)
+    {
+        <MudPaper Class="pa-8 d-flex flex-column align-center gap-2" Elevation="0" Outlined="true">
+            <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Color="Color.Secondary" />
+            <MudText Typo="Typo.h6">No companies match</MudText>
+            <MudButton Variant="Variant.Outlined" OnClick="ClearSearch">Clear search</MudButton>
+        </MudPaper>
+    }
+    else
+    {
+        <MudTable T="CompanySummary" Items="Visible" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Elevation="1"
+                  OnRowClick="OnRowClick" RowStyleFunc="@((_, _) => "cursor:pointer;")">
+            <HeaderContent>
+                <MudTh><MudTableSortLabel T="CompanySummary" InitialDirection="SortDirection.Ascending"
+                                          SortBy="@(summary => summary.Company.Name)">Company</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel T="CompanySummary" SortBy="@(summary => summary.Company.Industry ?? string.Empty)">Industry</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel T="CompanySummary" SortBy="@(summary => summary.Company.Size)">Size</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel T="CompanySummary" SortBy="@(summary => summary.ApplicationCount)">Applications</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel T="CompanySummary" SortBy="@(summary => summary.BestStage.HasValue ? (int)summary.BestStage.Value : -1)">Best stage</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel T="CompanySummary" SortBy="@(summary => summary.LastAppliedOn ?? DateTime.MinValue)">Last applied</MudTableSortLabel></MudTh>
+                <MudTh Style="text-align:right">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Company">
+                    <div class="d-flex align-center gap-1">
+                        <MudIcon Icon="@(IsExpanded(context) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" />
+                        <MudText Typo="Typo.body2"><b>@context.Company.Name</b></MudText>
+                        @if (!string.IsNullOrWhiteSpace(context.Company.Notes))
+                        {
+                            <MudTooltip Text="Has notes">
+                                <MudIcon Icon="@Icons.Material.Outlined.StickyNote2" Size="Size.Small" Color="Color.Secondary" />
+                            </MudTooltip>
+                        }
+                    </div>
+                </MudTd>
+                <MudTd DataLabel="Industry">@(context.Company.Industry ?? "–")</MudTd>
+                <MudTd DataLabel="Size">@(context.Company.Size == CompanySize.Unknown ? "–" : context.Company.Size.ToString())</MudTd>
+                <MudTd DataLabel="Applications">
+                    @context.ApplicationCount
+                    @if (context.ActiveCount > 0)
+                    {
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary ml-1">(@context.ActiveCount open)</MudText>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Best stage">
+                    @if (context.BestStage is ApplicationStatus best)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="StageColor(best)" Variant="Variant.Text">@best.ToDisplayText()</MudChip>
+                    }
+                    else
+                    {
+                        <span>–</span>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Last applied">@(context.LastAppliedOn?.ToString("d MMM yyyy") ?? "–")</MudTd>
+                <MudTd DataLabel="Actions" Style="text-align:right">
+                    @* Stop the click reaching the row, so pressing a button doesn't also expand it. *@
+                    <span @onclick:stopPropagation="true">
+                    @if (!string.IsNullOrEmpty(context.Company.Website))
+                    {
+                        <MudTooltip Text="Open website">
+                            <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small"
+                                           Href="@context.Company.Website" Target="_blank" rel="noopener noreferrer" />
+                        </MudTooltip>
+                    }
+                    <MudTooltip Text="Edit">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditAsync(context.Company)" />
+                    </MudTooltip>
+                    <MudTooltip Text="@(context.ApplicationCount > 0 ? "Delete its applications first" : "Delete")">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       Disabled="context.ApplicationCount > 0" OnClick="() => DeleteAsync(context)" />
+                    </MudTooltip>
+                    </span>
+                </MudTd>
+            </RowTemplate>
+            <ChildRowContent>
+                @if (IsExpanded(context))
+                {
+                    <MudTr>
+                        <td colspan="7" style="padding:0">
+                            <div class="pa-4 mud-background-gray">
+                                <MudGrid Spacing="3">
+                                    <MudItem xs="12" md="4">
+                                        <MudText Typo="Typo.subtitle2" Class="mb-1">Notes</MudText>
+                                        @if (string.IsNullOrWhiteSpace(context.Company.Notes))
+                                        {
+                                            <MudText Typo="Typo.body2" Class="mud-text-secondary">No notes yet. Use Edit to add some.</MudText>
+                                        }
+                                        else
+                                        {
+                                            <MudText Typo="Typo.body2" Style="white-space:pre-wrap">@context.Company.Notes</MudText>
+                                        }
+                                        @if (!string.IsNullOrEmpty(context.Company.Website))
+                                        {
+                                            <MudLink Href="@context.Company.Website" Target="_blank" Typo="Typo.body2" Class="mt-2 d-block">@context.Company.Website</MudLink>
+                                        }
+                                    </MudItem>
+                                    <MudItem xs="12" md="8">
+                                        <MudText Typo="Typo.subtitle2" Class="mb-1">Applications</MudText>
+                                        @if (context.ApplicationCount == 0)
+                                        {
+                                            <MudText Typo="Typo.body2" Class="mud-text-secondary">You haven't applied to @context.Company.Name yet.</MudText>
+                                        }
+                                        else
+                                        {
+                                            <MudSimpleTable Dense="true" Elevation="0" Style="background:transparent">
+                                                <tbody>
+                                                    @foreach (JobApplication application in context.Applications)
+                                                    {
+                                                        <tr>
+                                                            <td><MudLink Href="@($"/applications/{application.Id}")">@application.RoleTitle</MudLink></td>
+                                                            <td>
+                                                                <MudChip T="string" Size="Size.Small" Color="StageColor(application.Status)" Variant="Variant.Text">
+                                                                    @application.Status.ToDisplayText()
+                                                                </MudChip>
+                                                            </td>
+                                                            <td>@application.Location</td>
+                                                            <td>@(application.DateApplied?.ToString("d MMM yyyy") ?? "Not yet")</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </MudSimpleTable>
+                                        }
+                                    </MudItem>
+                                </MudGrid>
+                            </div>
+                        </td>
+                    </MudTr>
+                }
+            </ChildRowContent>
+        </MudTable>
+    }
+}
+
+@code {
+    private static readonly DialogOptions FormOptions = new DialogOptions
+    {
+        MaxWidth = MaxWidth.Small,
+        FullWidth = true,
+        CloseButton = true,
+        BackdropClick = false
+    };
+
+    private IReadOnlyList<CompanySummary> _summaries = Array.Empty<CompanySummary>();
+    private readonly HashSet<int> _expanded = new HashSet<int>();
+    private bool _loading = true;
+    private string? _error;
+    private string? _searchText;
+    private bool _appliedOnly;
+
+    /// <summary>The companies that match the search box and the "applied to" switch.</summary>
+    private IReadOnlyList<CompanySummary> Visible =>
+        _summaries
+            .Where(summary => !_appliedOnly || summary.ApplicationCount > 0)
+            .Where(summary => string.IsNullOrWhiteSpace(_searchText)
+                || Contains(summary.Company.Name, _searchText)
+                || Contains(summary.Company.Industry, _searchText)
+                || Contains(summary.Company.Notes, _searchText))
+            .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Application counts and stages change when applications do, so refresh when they change.
+        ApplicationService.ApplicationsChanged += OnApplicationsChanged;
+        await LoadAsync();
+    }
+
+    /// <summary>Loads every company with its stats.</summary>
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _error = null;
+            _summaries = await CompanyService.GetSummariesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load companies: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private bool IsExpanded(CompanySummary summary) => _expanded.Contains(summary.Company.Id);
+
+    private void OnRowClick(TableRowClickEventArgs<CompanySummary> args)
+    {
+        if (args.Item != null && !_expanded.Remove(args.Item.Company.Id))
+        {
+            _expanded.Add(args.Item.Company.Id);
+        }
+    }
+
+    private void ClearSearch()
+    {
+        _searchText = null;
+        _appliedOnly = false;
+    }
+
+    private async Task AddAsync()
+    {
+        IDialogReference dialog = await DialogService.ShowAsync<CompanyFormDialog>("Add company", FormOptions);
+        DialogResult? result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Company added.", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task EditAsync(Company company)
+    {
+        var parameters = new DialogParameters<CompanyFormDialog> { { dialog => dialog.CompanyId, company.Id } };
+        IDialogReference dialog = await DialogService.ShowAsync<CompanyFormDialog>("Edit company", parameters, FormOptions);
+        DialogResult? result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Changes saved.", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(CompanySummary summary)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Delete company",
+            $"Delete {summary.Company.Name} and its notes?",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await CompanyService.DeleteAsync(summary.Company.Id);
+            Snackbar.Add("Company deleted.", Severity.Info);
+        }
+        catch (KeyNotFoundException)
+        {
+            Snackbar.Add("That company was already deleted.", Severity.Warning);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // An application was added to the company after the page loaded.
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not delete: {ex.Message}", Severity.Error);
+        }
+
+        _expanded.Remove(summary.Company.Id);
+        await LoadAsync();
+    }
+
+    /// <summary>The application service raises this after every change; reload on the UI thread.</summary>
+    private void OnApplicationsChanged(object? sender, ApplicationChangedEventArgs e)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        ApplicationService.ApplicationsChanged -= OnApplicationsChanged;
+    }
+
+    /// <summary>Case-insensitive "contains" that treats null as no match.</summary>
+    private static bool Contains(string? value, string text) =>
+        value != null && value.Contains(text.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Green for offers, blue for interviews, red for endings, grey for the rest.</summary>
+    private static Color StageColor(ApplicationStatus status) => status switch
+    {
+        ApplicationStatus.Offer or ApplicationStatus.Accepted => Color.Success,
+        ApplicationStatus.Interview or ApplicationStatus.FinalRound => Color.Info,
+        ApplicationStatus.Assessment => Color.Primary,
+        ApplicationStatus.Rejected or ApplicationStatus.Ghosted => Color.Error,
+        ApplicationStatus.Withdrawn => Color.Warning,
+        _ => Color.Default
+    };
+}
