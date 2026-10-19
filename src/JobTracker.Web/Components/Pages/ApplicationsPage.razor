@@ -182,6 +182,18 @@ else
     private IEnumerable<WorkMode> _workModes = new HashSet<WorkMode>();
     private int _minimumSalary;
 
+    /// <summary>True when opened as /applications?add=true (e.g. from the dashboard), to show the add form straight away.</summary>
+    [SupplyParameterFromQuery(Name = "add")]
+    public bool OpenAddForm { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && OpenAddForm)
+        {
+            await AddAsync();
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
         ApplicationService.ApplicationsChanged += OnApplicationsChanged;

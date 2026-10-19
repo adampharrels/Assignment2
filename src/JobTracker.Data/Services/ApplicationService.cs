@@ -14,8 +14,8 @@ namespace JobTracker.Data.Services;
 /// </summary>
 /// <remarks>
 /// A new database context is created for every call, as recommended for Blazor Server.
-/// Until Grace's company service (G4) is merged, companies are matched or created here by name;
-/// switch FindOrCreateCompanyAsync to ICompanyService.GetOrCreateAsync once it exists.
+/// Companies are matched by name, ignoring case and surrounding spaces, or created when new, the same way
+/// ICompanyService.GetOrCreateAsync does.
 /// </remarks>
 public class ApplicationService : IApplicationService, IApplicationDataSource
 {

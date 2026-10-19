@@ -3,4 +3,10 @@
         <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
+    <NotFound>
+        @* Unknown addresses are re-executed as /not-found (Program.cs), but the router still sees the original address. *@
+        <LayoutView Layout="typeof(Layout.MainLayout)">
+            <JobTracker.Web.Components.Pages.NotFound />
+        </LayoutView>
+    </NotFound>
 </Router>

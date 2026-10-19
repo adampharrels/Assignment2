@@ -1,4 +1,5 @@
 @page "/"
+@using JobTracker.Core.Dashboard
 @using JobTracker.Data.Services
 @implements IAsyncDisposable
 @inject DashboardService Dashboard
@@ -56,7 +57,7 @@
                 @foreach (var interview in _data.Interviews)
                 {
                     <div class="my-3">
-                        <MudText Typo="Typo.subtitle2">@interview.Type · Application #@interview.ApplicationId</MudText>
+                        <MudText Typo="Typo.subtitle2">@interview.Type.ToDisplayText() · @ApplicationLabel(interview.ApplicationId)</MudText>
                         <MudText>@SydneyTime(interview.ScheduledAt).ToString("ddd d MMM, HH:mm") Sydney time · @interview.DurationMinutes minutes</MudText>
                         <MudText Typo="Typo.body2">@interview.LocationOrLink</MudText>
                     </div>
@@ -97,6 +98,13 @@
         TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), SydneyTimeZone);
 
     private DashboardSnapshot? _data;
+
+    /// <summary>"Company · Role" for an interview, taken from the application's stage history.</summary>
+    private string ApplicationLabel(int applicationId)
+    {
+        StageChange? change = _data?.Applications.Changes.FirstOrDefault(item => item.ApplicationId == applicationId);
+        return change is null ? $"Application #{applicationId}" : $"{change.Company} · {change.Role}";
+    }
     private bool _loading;
     private bool _error;
     private readonly CancellationTokenSource _lifetime = new();

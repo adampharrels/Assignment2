@@ -58,7 +58,7 @@
                     {
                         <button class="calendar-event @(interview.Outcome == InterviewOutcome.Cancelled ? "calendar-cancelled" : "")"
                                 @onclick="() => OpenAsync(date, interview.Id)">
-                            <strong>@SydneyTime.FromUtc(interview.ScheduledAt).ToString("HH:mm") · @interview.Type</strong>
+                            <strong>@SydneyTime.FromUtc(interview.ScheduledAt).ToString("HH:mm") · @interview.Type.ToDisplayText()</strong>
                             <span>@ApplicationLabel(interview.ApplicationId)</span>
                             <span>@interview.Outcome · @interview.DurationMinutes min</span>
                         </button>

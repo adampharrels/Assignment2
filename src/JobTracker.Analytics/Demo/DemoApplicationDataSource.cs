@@ -4,14 +4,12 @@ using JobTracker.Core.Interfaces;
 namespace JobTracker.Analytics.Demo;
 
 /// <summary>
-/// Temporary stand-in for the real application data while the application entity (K2) does not exist.
-/// Generates 72 realistic applications. A fixed random seed makes the data identical on every run,
-/// so the demo and the charts are repeatable.
+/// Generates 72 realistic random applications for testing the analytics without a database.
+/// A fixed random seed makes the data identical on every run, so the results are repeatable.
 /// </summary>
 /// <remarks>
 /// The data has real patterns built in (referrals, tailored resumes, skill match and applying early
 /// all raise the interview chance) so the statistics and models have something to find.
-/// Remove the registration in Program.cs once the application service implements IApplicationDataSource.
 /// </remarks>
 public class DemoApplicationDataSource : IApplicationDataSource
 {

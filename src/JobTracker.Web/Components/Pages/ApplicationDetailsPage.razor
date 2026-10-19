@@ -154,7 +154,7 @@ else
                             {
                                 <tr>
                                     <td>@interview.ScheduledAt.ToLocalTime().ToString("ddd d MMM, h:mm tt")</td>
-                                    <td>@interview.Type</td>
+                                    <td>@interview.Type.ToDisplayText()</td>
                                     <td>@interview.DurationMinutes min</td>
                                     <td>@(interview.LocationOrLink ?? "–")</td>
                                     <td>@interview.Outcome</td>

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using JobTracker.Core.Entities;
 using JobTracker.Core.Enums;
+using JobTracker.Core.Extensions;
 
 namespace JobTracker.Core.Calendar;
 
@@ -38,7 +39,7 @@ public static class InterviewCalendarExport
             Line("DTSTAMP:" + Timestamp(generatedUtc));
             Line("DTSTART:" + Timestamp(item.ScheduledAt));
             Line("DTEND:" + Timestamp(item.ScheduledAt.AddMinutes(item.DurationMinutes)));
-            Line("SUMMARY:" + Escape($"{item.Type} interview · {applicationLabel(item.ApplicationId)}"));
+            Line("SUMMARY:" + Escape($"{item.Type.ToDisplayText()} interview · {applicationLabel(item.ApplicationId)}"));
             Line("LOCATION:" + Escape(item.LocationOrLink ?? string.Empty));
             Line("DESCRIPTION:" + Escape($"Outcome: {item.Outcome}\nInterviewer: {item.Interviewer}\n{item.PrepNotes}"));
             Line("STATUS:" + (item.Outcome == InterviewOutcome.Cancelled ? "CANCELLED" : "CONFIRMED"));
