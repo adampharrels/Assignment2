@@ -1,6 +1,6 @@
+using System.Text;
 using JobTracker.Core.Entities;
 using JobTracker.Core.Enums;
-using System.Text;
 using JobTracker.Data;
 using JobTracker.Data.Profile;
 using JobTracker.Data.Services;
