@@ -21,7 +21,9 @@ builder.Services.AddDbContextFactory<JobTrackerDbContext>(options => options.Use
 
 // Services (owner in brackets). Add your registration here, or ask Adam to.
 builder.Services.AddScoped<IProfileService, ProfileService>();                 // K1 (Adam)
-// TODO (K2, Sarah): replace the seed data with the application service once it implements IApplicationDataSource.
+builder.Services.AddScoped<IApplicationService, ApplicationService>();         // K2/S1 (Sarah)
+// TODO (K2, Sarah): ApplicationService also implements IApplicationDataSource. Swap the line below to it once
+// the seed applications are saved to the database, so every screen reads the same data.
 builder.Services.AddSingleton<IApplicationDataSource, SeedApplicationDataSource>(); // G1 (Grace)
 builder.Services.AddSingleton<ISkillExtractor, DictionarySkillExtractor>();      // A3 (Adam)
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();            // A1-A5 (Adam)
