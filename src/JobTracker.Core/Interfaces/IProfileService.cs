@@ -1,4 +1,5 @@
 using JobTracker.Core.Entities;
+using JobTracker.Core.Enums;
 
 namespace JobTracker.Core.Interfaces;
 
@@ -20,4 +21,15 @@ public interface IProfileService
 
     /// <summary>Marks a skill as one the user has, or removes it from their profile.</summary>
     Task SetInProfileAsync(int skillId, bool inProfile, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Adds a new skill to the list, already marked as one the user has (G6). The name is trimmed and
+    /// stored in lower case; pass the skill extractor's canonical name when there is one (e.g. "react"
+    /// for "React.js") so the analysis can match it in job descriptions.
+    /// </summary>
+    /// <returns>The saved skill with its generated identifier.</returns>
+    /// <exception cref="System.ComponentModel.DataAnnotations.ValidationException">
+    /// The name is blank, too long, or already in the list (ignoring case).
+    /// </exception>
+    Task<Skill> AddSkillAsync(string name, SkillCategory category, CancellationToken cancellationToken = default);
 }

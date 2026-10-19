@@ -1,6 +1,8 @@
 using JobTracker.Core.Entities;
 using JobTracker.Core.Enums;
+using System.Text;
 using JobTracker.Data;
+using JobTracker.Data.Profile;
 using JobTracker.Data.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -76,6 +78,31 @@ public class DemoDataServiceTests
             Assert.That(await context.StageEvents.CountAsync(), Is.Zero);
             Assert.That(await context.Companies.AnyAsync(company => company.Name == "Brand New Co"), Is.False);
         });
+    }
+
+    [Test]
+    public async Task ResetAsync_RemovesTheUploadedResume()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "jobtracker-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var resumes = new ResumeFileStore(directory);
+            using (var pdf = new MemoryStream(Encoding.ASCII.GetBytes("%PDF-1.4\n%%EOF\n")))
+            {
+                await resumes.SaveAsync(pdf, "resume.pdf");
+            }
+
+            await new DemoDataService(_database, resumes).ResetAsync();
+
+            Assert.That(resumes.Get(), Is.Null);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
     }
 
     [Test]

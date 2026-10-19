@@ -1,3 +1,4 @@
+using JobTracker.Data.Profile;
 using Microsoft.EntityFrameworkCore;
 
 namespace JobTracker.Data.Services;
@@ -11,17 +12,20 @@ namespace JobTracker.Data.Services;
 public class DemoDataService
 {
     private readonly IDbContextFactory<JobTrackerDbContext> _contextFactory;
+    private readonly ResumeFileStore? _resumeFiles;
 
     /// <summary>Creates the service.</summary>
     /// <param name="contextFactory">Creates a short-lived database context per call.</param>
-    public DemoDataService(IDbContextFactory<JobTrackerDbContext> contextFactory)
+    /// <param name="resumeFiles">Where the uploaded resume is kept, so a reset removes it too; null to leave files alone.</param>
+    public DemoDataService(IDbContextFactory<JobTrackerDbContext> contextFactory, ResumeFileStore? resumeFiles = null)
     {
         _contextFactory = contextFactory;
+        _resumeFiles = resumeFiles;
     }
 
     /// <summary>
     /// Deletes everything the user has added or changed (applications, stage history, interviews, companies,
-    /// skills and the profile), then adds the starting profile, skills and G1 demo data again.
+    /// skills, the profile and the uploaded resume), then adds the starting profile, skills and G1 demo data again.
     /// </summary>
     /// <param name="cancellationToken">Cancels the reset before the delete is committed.</param>
     public async Task ResetAsync(CancellationToken cancellationToken = default)
@@ -42,5 +46,6 @@ public class DemoDataService
 
         // Every table is empty now, so the initializer adds the same data as on first run.
         await DatabaseInitializer.InitializeAsync(_contextFactory);
+        _resumeFiles?.Delete();
     }
 }

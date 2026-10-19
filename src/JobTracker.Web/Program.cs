@@ -3,8 +3,10 @@ using JobTracker.Analytics;
 using JobTracker.Analytics.Text;
 using JobTracker.Core.Interfaces;
 using JobTracker.Data;
+using JobTracker.Data.Profile;
 using JobTracker.Data.Seed;
 using JobTracker.Data.Services;
+using JobTracker.Web;
 using JobTracker.Web.Components;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
@@ -32,6 +34,7 @@ builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();            //
 builder.Services.AddScoped<IDashboardApplicationSource, DemoDashboardApplicationSource>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<DemoDataService>();                                   // G6 (Grace)
+builder.Services.AddSingleton(new ResumeFileStore(Path.Combine(builder.Environment.ContentRootPath, "App_Data", "resume"))); // G6 (Grace)
 
 var app = builder.Build();
 
@@ -44,6 +47,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseAntiforgery();
 app.MapStaticAssets();
+app.MapResumeFile();                                                             // G6 (Grace)
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();
