@@ -1,9 +1,9 @@
 using ApexCharts;
 using JobTracker.Analytics;
-using JobTracker.Analytics.Demo;
 using JobTracker.Analytics.Text;
 using JobTracker.Core.Interfaces;
 using JobTracker.Data;
+using JobTracker.Data.Seed;
 using JobTracker.Data.Services;
 using JobTracker.Web.Components;
 using Microsoft.EntityFrameworkCore;
@@ -23,8 +23,8 @@ builder.Services.AddDbContextFactory<JobTrackerDbContext>(options => options.Use
 builder.Services.AddScoped<IProfileService, ProfileService>();                 // K1 (Adam)
 builder.Services.AddScoped<IApplicationService, ApplicationService>();         // K2/S1 (Sarah)
 // TODO (K2, Sarah): ApplicationService also implements IApplicationDataSource. Swap the line below to it once
-// the seed applications are saved to the database (after G1 is merged), so the analytics read real data.
-builder.Services.AddSingleton<IApplicationDataSource, DemoApplicationDataSource>();
+// the seed applications are saved to the database, so every screen reads the same data.
+builder.Services.AddSingleton<IApplicationDataSource, SeedApplicationDataSource>(); // G1 (Grace)
 builder.Services.AddSingleton<ISkillExtractor, DictionarySkillExtractor>();      // A3 (Adam)
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();            // A1-A5 (Adam)
 
