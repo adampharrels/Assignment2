@@ -4,7 +4,7 @@ namespace JobTracker.Core.Interfaces;
 
 /// <summary>Supplies submitted applications to the analytics engine as flat records.</summary>
 /// <remarks>
-/// Until the application entity (K2) exists, the app uses DemoApplicationDataSource.
+/// The app uses ApplicationService, which reads the stored applications.
 /// Once it does, the application service implements this by mapping its entities to
 /// ApplicationRecord, and Program.cs swaps one registration line. Wishlist items that
 /// were never submitted must not be returned.

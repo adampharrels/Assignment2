@@ -2,7 +2,7 @@ namespace JobTracker.Data.Seed;
 
 /// <summary>
 /// The application statuses from the spec's status rules, used by the seed stage histories.
-/// Stands in for the K2 status enum until it exists; the pipeline values are in forward order.
+/// Mirrors ApplicationStatus value for value (SeedData.ToEntity casts between them); the pipeline values are in forward order.
 /// </summary>
 public enum SeedStatus
 {

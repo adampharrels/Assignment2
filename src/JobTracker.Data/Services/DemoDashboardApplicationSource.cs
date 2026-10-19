@@ -3,7 +3,7 @@ using JobTracker.Core.Interfaces;
 
 namespace JobTracker.Data.Services;
 
-/// <summary>Temporary G2 adapter until S1 supplies all applications and recorded stage history.</summary>
+/// <summary>Dashboard data built from analytics records only, without stage history. Used by tests; the app uses DashboardApplicationSource.</summary>
 /// <remarks>Only submission dates are known; later transitions must never be invented from highest stage.</remarks>
 public sealed class DemoDashboardApplicationSource(IApplicationDataSource applications) : IDashboardApplicationSource
 {

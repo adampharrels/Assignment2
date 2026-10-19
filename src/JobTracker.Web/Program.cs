@@ -32,8 +32,7 @@ builder.Services.AddSingleton<ISkillExtractor, DictionarySkillExtractor>();     
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();            // A1-A5 (Adam)
 
 builder.Services.AddScoped<IInterviewService, InterviewService>();           // G3 (Grace)
-// G2: replace the demo adapter when S1 provides totals, history and its creation route.
-builder.Services.AddScoped<IDashboardApplicationSource, DemoDashboardApplicationSource>();
+builder.Services.AddScoped<IDashboardApplicationSource, DashboardApplicationSource>();   // G2 (Grace), A7
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<ImportExportService>();                               // G5 (Grace)
 builder.Services.AddScoped(services => new DemoDataService(                     // G6 (Grace)
@@ -52,6 +51,8 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
 
+// Unknown addresses show the app's own "Page not found" page instead of a blank browser error.
+app.UseStatusCodePagesWithReExecute("/not-found");
 app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapResumeFile();                                                             // G6 (Grace)

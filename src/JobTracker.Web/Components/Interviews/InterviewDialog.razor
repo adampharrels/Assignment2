@@ -35,7 +35,7 @@
                 <MudSelect T="InterviewType" Label="Interview type" @bind-Value="_model.Type">
                     @foreach (var type in Enum.GetValues<InterviewType>())
                     {
-                        <MudSelectItem T="InterviewType" Value="type">@TypeLabel(type)</MudSelectItem>
+                        <MudSelectItem T="InterviewType" Value="type">@type.ToDisplayText()</MudSelectItem>
                     }
                 </MudSelect>
                 <MudDatePicker Label="Date (Sydney)" @bind-Date="_date" Required="true" Editable="true" DateFormat="dd/MM/yyyy" />
@@ -155,10 +155,4 @@
     }
 
     private void Cancel() => Dialog.Cancel();
-    private static string TypeLabel(InterviewType type) => type switch
-    {
-        InterviewType.AssessmentCentre => "Assessment centre",
-        InterviewType.FinalRound => "Final round",
-        _ => type.ToString()
-    };
 }
