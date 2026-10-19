@@ -1,0 +1,261 @@
+@page "/board"
+@* Owner: Sarah (S3). Kanban board: drag a card to move the application to a new status. *@
+@using JobTracker.Core.Entities
+@using JobTracker.Core.Enums
+@using JobTracker.Core.Extensions
+@using JobTracker.Web.Components.Applications
+@implements IDisposable
+@inject IApplicationService ApplicationService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Board</PageTitle>
+
+<div class="d-flex flex-wrap align-center justify-space-between gap-2 mb-2">
+    <div>
+        <MudText Typo="Typo.h4">Board</MudText>
+        <MudText Typo="Typo.body2">Drag a card to a new stage. Right-click a card for more actions.</MudText>
+    </div>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddAsync">
+        Add application
+    </MudButton>
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_error != null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else
+{
+    <div style="overflow-x:auto; padding-bottom:8px;">
+        <MudDropContainer T="JobApplication" @ref="_container" Items="_applications"
+                          ItemsSelector="@((application, zone) => application.Status.ToString() == zone)"
+                          ItemDropped="OnItemDroppedAsync" Class="d-flex flex-nowrap gap-3">
+            <ChildContent>
+                @foreach (BoardColumn column in _columns)
+                {
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-2 d-flex flex-column"
+                              Style="@($"width:260px; min-width:260px; background-color:{ColumnBackground(column)};")">
+                        <div class="d-flex align-center justify-space-between px-1 mb-2">
+                            <MudText Typo="Typo.subtitle2">@column.Status.ToDisplayText()</MudText>
+                            <MudChip T="string" Size="Size.Small" Color="StatusColor(column.Status)" Variant="Variant.Text">@column.Count</MudChip>
+                        </div>
+                        <MudDropZone T="JobApplication" Identifier="@column.Status.ToString()"
+                                     Class="d-flex flex-column gap-2 flex-grow-1" Style="min-height:320px;" />
+                    </MudPaper>
+                }
+            </ChildContent>
+            <ItemRenderer>
+                <MudMenu ActivationEvent="@MouseEvent.RightClick" PositionAtCursor="true" Dense="true" Class="d-block" Style="width:100%;">
+                    <ActivatorContent>
+                        <MudCard Elevation="1" Style="cursor:grab;">
+                            <MudCardContent Class="pa-3">
+                                <MudText Typo="Typo.body1" Style="font-weight:500;">@context.RoleTitle</MudText>
+                                <MudText Typo="Typo.body2">@context.Company?.Name</MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                    @context.Location · @(context.DateApplied?.ToString("d MMM") ?? "Not applied yet")
+                                </MudText>
+                                @if (context.HadReferral || context.TailoredResume || context.WroteCoverLetter)
+                                {
+                                    <div class="d-flex flex-wrap gap-1 mt-1">
+                                        @if (context.HadReferral)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success">Referral</MudChip>
+                                        }
+                                        @if (context.TailoredResume)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Tailored</MudChip>
+                                        }
+                                        @if (context.WroteCoverLetter)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Cover letter</MudChip>
+                                        }
+                                    </div>
+                                }
+                            </MudCardContent>
+                        </MudCard>
+                    </ActivatorContent>
+                    <ChildContent>
+                        <MudMenuItem Icon="@Icons.Material.Filled.OpenInNew" OnClick="() => Open(context)">Open</MudMenuItem>
+                        <MudMenuItem Icon="@Icons.Material.Filled.Edit" OnClick="() => EditAsync(context)">Edit</MudMenuItem>
+                        <MudDivider />
+                        <MudMenuItem Icon="@Icons.Material.Filled.ThumbDown" Disabled="!CanMoveTo(context, ApplicationStatus.Rejected)"
+                                     OnClick="() => MoveAsync(context, ApplicationStatus.Rejected)">Reject</MudMenuItem>
+                        <MudMenuItem Icon="@Icons.Material.Filled.Undo" Disabled="!CanMoveTo(context, ApplicationStatus.Withdrawn)"
+                                     OnClick="() => MoveAsync(context, ApplicationStatus.Withdrawn)">Withdraw</MudMenuItem>
+                        <MudDivider />
+                        <MudMenuItem Icon="@Icons.Material.Filled.Delete" IconColor="Color.Error" OnClick="() => DeleteAsync(context)">Delete</MudMenuItem>
+                    </ChildContent>
+                </MudMenu>
+            </ItemRenderer>
+        </MudDropContainer>
+    </div>
+}
+
+@code {
+    private static readonly DialogOptions FormOptions = new DialogOptions
+    {
+        MaxWidth = MaxWidth.Medium,
+        FullWidth = true,
+        CloseButton = true,
+        BackdropClick = false
+    };
+
+    private MudDropContainer<JobApplication>? _container;
+    private List<JobApplication> _applications = new List<JobApplication>();
+    private IReadOnlyList<BoardColumn> _columns = Array.Empty<BoardColumn>();
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Refresh whenever an application changes, e.g. after editing it in the dialog.
+        ApplicationService.ApplicationsChanged += OnApplicationsChanged;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _error = null;
+            _applications = (await ApplicationService.GetAllAsync()).ToList();
+            _columns = ApplicationBoard.BuildColumns(_applications);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load the board: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+        _container?.Refresh();
+    }
+
+    /// <summary>
+    /// Called when a card is dropped on a column. The service checks the status rules; if the move is not
+    /// allowed it throws, the card stays in its old status (so it snaps back) and the reason is shown.
+    /// </summary>
+    private async Task OnItemDroppedAsync(MudItemDropInfo<JobApplication> dropInfo)
+    {
+        JobApplication? application = dropInfo.Item;
+        if (application == null
+            || !Enum.TryParse(dropInfo.DropzoneIdentifier, out ApplicationStatus target)
+            || target == application.Status)
+        {
+            return;
+        }
+
+        await MoveAsync(application, target);
+    }
+
+    /// <summary>Moves an application to a new status, from a drop or from the right-click menu.</summary>
+    private async Task MoveAsync(JobApplication application, ApplicationStatus target)
+    {
+        try
+        {
+            await ApplicationService.ChangeStatusAsync(application.Id, target);
+            Snackbar.Add($"Moved \"{application.RoleTitle}\" to {target.ToDisplayText()}.", Severity.Success);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // An illegal move: the message from the status rules explains why.
+            Snackbar.Add(ex.Message, Severity.Warning);
+            await LoadAsync();
+        }
+        catch (KeyNotFoundException)
+        {
+            Snackbar.Add("That application no longer exists.", Severity.Warning);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not move the application: {ex.Message}", Severity.Error);
+            await LoadAsync();
+        }
+    }
+
+    /// <summary>Whether the right-click menu should offer a move. Ghosted cards can always exit, so the simple check is enough.</summary>
+    private static bool CanMoveTo(JobApplication application, ApplicationStatus target) =>
+        ApplicationStatusRules.CanMove(application.Status, target);
+
+    private void Open(JobApplication application) => Navigation.NavigateTo($"/applications/{application.Id}");
+
+    private async Task AddAsync()
+    {
+        IDialogReference dialog = await DialogService.ShowAsync<ApplicationFormDialog>("Add application", FormOptions);
+        DialogResult? result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Application added.", Severity.Success);
+        }
+    }
+
+    private async Task EditAsync(JobApplication application)
+    {
+        var parameters = new DialogParameters<ApplicationFormDialog> { { dialog => dialog.ApplicationId, application.Id } };
+        IDialogReference dialog = await DialogService.ShowAsync<ApplicationFormDialog>("Edit application", parameters, FormOptions);
+        DialogResult? result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Changes saved.", Severity.Success);
+        }
+    }
+
+    private async Task DeleteAsync(JobApplication application)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Delete application",
+            $"Delete \"{application.RoleTitle}\" at {application.Company?.Name}? Its stage history and interviews are deleted too.",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await ApplicationService.DeleteAsync(application.Id);
+            Snackbar.Add("Application deleted.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not delete: {ex.Message}", Severity.Error);
+        }
+    }
+
+    /// <summary>The service raises this after every change; reload on the UI thread.</summary>
+    private void OnApplicationsChanged(object? sender, ApplicationChangedEventArgs e)
+    {
+        _ = InvokeAsync(LoadAsync);
+    }
+
+    public void Dispose()
+    {
+        ApplicationService.ApplicationsChanged -= OnApplicationsChanged;
+    }
+
+    /// <summary>Exit columns get a light grey background so the pipeline stands out.</summary>
+    private static string ColumnBackground(BoardColumn column) =>
+        column.IsExit ? "var(--mud-palette-background-gray)" : "var(--mud-palette-surface)";
+
+    /// <summary>Green for good news, red for endings, blue for interviews, grey for the rest.</summary>
+    private static Color StatusColor(ApplicationStatus status) => status switch
+    {
+        ApplicationStatus.Offer or ApplicationStatus.Accepted => Color.Success,
+        ApplicationStatus.Interview or ApplicationStatus.FinalRound => Color.Info,
+        ApplicationStatus.Rejected or ApplicationStatus.Ghosted => Color.Error,
+        ApplicationStatus.Withdrawn => Color.Warning,
+        _ => Color.Default
+    };
+}
