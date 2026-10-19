@@ -1,0 +1,14 @@
+@* Owner: Sarah (S4). A small label + value pair used on the application details page. *@
+
+<MudText Typo="Typo.caption" Class="mud-text-secondary">@Label</MudText>
+<MudText Typo="Typo.body2">@Value</MudText>
+
+@code {
+    /// <summary>The small grey label, e.g. "Location".</summary>
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>The value shown under the label.</summary>
+    [Parameter]
+    public string? Value { get; set; }
+}

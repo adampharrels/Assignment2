@@ -1,0 +1,377 @@
+@page "/applications/{Id:int}"
+@* Owner: Sarah (S4). Everything about one application: details, highlighted job description, stage timeline,
+   interviews, and Adam's Skills & fit panel. *@
+@using JobTracker.Analytics.Text
+@using JobTracker.Core.Entities
+@using JobTracker.Core.Enums
+@using JobTracker.Core.Extensions
+@using JobTracker.Web.Components.Applications
+@implements IDisposable
+@inject IApplicationService ApplicationService
+@inject ISkillExtractor SkillExtractor
+@inject IServiceProvider Services
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>@(_application?.RoleTitle ?? "Application")</PageTitle>
+
+<MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" Href="/applications" Class="mb-2">All applications</MudButton>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_error != null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else if (_application == null)
+{
+    <MudPaper Class="pa-8 d-flex flex-column align-center gap-2" Elevation="0" Outlined="true">
+        <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Color="Color.Secondary" />
+        <MudText Typo="Typo.h6">Application not found</MudText>
+        <MudText Typo="Typo.body2">It may have been deleted.</MudText>
+        <MudButton Variant="Variant.Outlined" Href="/applications">Back to applications</MudButton>
+    </MudPaper>
+}
+else
+{
+    @* ---------- Header ---------- *@
+    <div class="d-flex flex-wrap align-start justify-space-between gap-3 mb-4">
+        <div>
+            <MudText Typo="Typo.h4">@_application.RoleTitle</MudText>
+            <MudText Typo="Typo.h6" Class="mud-text-secondary">@_application.Company?.Name</MudText>
+            <div class="d-flex flex-wrap align-center gap-2 mt-2">
+                <MudChip T="string" Color="StatusColor(_application.Status)" Variant="Variant.Filled" Size="Size.Small">@_application.Status.ToDisplayText()</MudChip>
+                @if (_application.HadReferral)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success">Referral</MudChip>
+                }
+                @if (_application.TailoredResume)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Tailored resume</MudChip>
+                }
+                @if (_application.WroteCoverLetter)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Cover letter</MudChip>
+                }
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <MudMenu Label="Move to" Variant="Variant.Outlined" EndIcon="@Icons.Material.Filled.ArrowDropDown"
+                     Disabled="_allowedMoves.Count == 0">
+                @foreach (ApplicationStatus target in _allowedMoves)
+                {
+                    <MudMenuItem OnClick="() => MoveAsync(target)">@target.ToDisplayText()</MudMenuItem>
+                }
+            </MudMenu>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit" OnClick="EditAsync">Edit</MudButton>
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="DeleteAsync" aria-label="Delete" />
+        </div>
+    </div>
+
+    <MudGrid>
+        @* ---------- Left: facts, job description, interviews ---------- *@
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudGrid Spacing="2">
+                    <MudItem xs="6" sm="4"><Fact Label="Location" Value="@($"{_application.Location} ({_application.WorkMode.ToDisplayText()})")" /></MudItem>
+                    <MudItem xs="6" sm="4"><Fact Label="Source" Value="@_application.Source.ToDisplayText()" /></MudItem>
+                    <MudItem xs="6" sm="4"><Fact Label="Salary" Value="@SalaryText()" /></MudItem>
+                    <MudItem xs="6" sm="4"><Fact Label="Applied" Value="@(_application.DateApplied?.ToString("d MMM yyyy") ?? "Not yet")" /></MudItem>
+                    <MudItem xs="6" sm="4"><Fact Label="Posted" Value="@(_application.DatePosted?.ToString("d MMM yyyy") ?? "Unknown")" /></MudItem>
+                    <MudItem xs="6" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Job ad</MudText>
+                        @if (string.IsNullOrEmpty(_application.JobUrl))
+                        {
+                            <MudText Typo="Typo.body2">None</MudText>
+                        }
+                        else
+                        {
+                            <MudLink Href="@_application.JobUrl" Target="_blank" Typo="Typo.body2">Open link</MudLink>
+                        }
+                    </MudItem>
+                    @if (!string.IsNullOrWhiteSpace(_application.Notes))
+                    {
+                        <MudItem xs="12"><Fact Label="Notes" Value="@_application.Notes" /></MudItem>
+                    }
+                </MudGrid>
+            </MudPaper>
+
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudText Typo="Typo.h6" GutterBottom="true">Job description</MudText>
+                @if (_segments.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">No job description yet. Edit the application to paste one.</MudText>
+                }
+                else
+                {
+                    @if (_skills.Count > 0)
+                    {
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Skills found (@_skills.Count)</MudText>
+                        <div class="d-flex flex-wrap gap-1 mb-3">
+                            @foreach (string skill in _skills)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">@skill</MudChip>
+                            }
+                        </div>
+                    }
+                    <MudText Typo="Typo.body2" Style="white-space:pre-wrap; line-height:1.7;">
+                        @foreach (TextSegment segment in _segments)
+                        {
+                            if (segment.IsSkill)
+                            {
+                                <mark title="@segment.Skill" style="background-color:var(--mud-palette-primary-lighten); color:var(--mud-palette-primary-text); padding:0 3px; border-radius:4px;">@segment.Text</mark>
+                            }
+                            else
+                            {
+                                @segment.Text
+                            }
+                        }
+                    </MudText>
+                }
+            </MudPaper>
+
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudText Typo="Typo.h6" GutterBottom="true">Interviews</MudText>
+                @if (!_interviewsAvailable)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                        Interviews will show here once the interview calendar is added.
+                    </MudText>
+                }
+                else if (_interviews.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">No interviews scheduled for this application.</MudText>
+                }
+                else
+                {
+                    <MudSimpleTable Dense="true" Hover="true">
+                        <thead><tr><th>When</th><th>Type</th><th>Length</th><th>Where</th><th>Outcome</th></tr></thead>
+                        <tbody>
+                            @foreach (Interview interview in _interviews)
+                            {
+                                <tr>
+                                    <td>@interview.ScheduledAt.ToLocalTime().ToString("ddd d MMM, h:mm tt")</td>
+                                    <td>@interview.Type</td>
+                                    <td>@interview.DurationMinutes min</td>
+                                    <td>@(interview.LocationOrLink ?? "–")</td>
+                                    <td>@interview.Outcome</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+            </MudPaper>
+        </MudItem>
+
+        @* ---------- Right: stage timeline and Adam's Skills & fit panel ---------- *@
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudText Typo="Typo.h6" GutterBottom="true">Stage history</MudText>
+                @if (_application.StageHistory.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">No history recorded.</MudText>
+                }
+                else
+                {
+                    <MudTimeline TimelinePosition="TimelinePosition.Start" Reverse="true">
+                        @foreach (StageEvent stageEvent in _application.StageHistory)
+                        {
+                            <MudTimelineItem Color="StatusColor(stageEvent.ToStatus)" Size="Size.Small">
+                                <ItemContent>
+                                    <MudText Typo="Typo.body1">@stageEvent.ToStatus.ToDisplayText()</MudText>
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                        @stageEvent.ChangedAt.ToString("d MMM yyyy")
+                                        @(stageEvent.FromStatus is ApplicationStatus from ? $" · from {from.ToDisplayText()}" : " · added")
+                                    </MudText>
+                                    @if (!string.IsNullOrWhiteSpace(stageEvent.Note))
+                                    {
+                                        <MudText Typo="Typo.body2">@stageEvent.Note</MudText>
+                                    }
+                                </ItemContent>
+                            </MudTimelineItem>
+                        }
+                    </MudTimeline>
+                }
+            </MudPaper>
+
+            <SkillFitPanel ApplicationId="@_application.Id" />
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    /// <summary>The application's Id, from the URL.</summary>
+    [Parameter]
+    public int Id { get; set; }
+
+    private static readonly DialogOptions FormOptions = new DialogOptions
+    {
+        MaxWidth = MaxWidth.Medium,
+        FullWidth = true,
+        CloseButton = true,
+        BackdropClick = false
+    };
+
+    private JobApplication? _application;
+    private IReadOnlyList<TextSegment> _segments = Array.Empty<TextSegment>();
+    private IReadOnlyList<string> _skills = Array.Empty<string>();
+    private IReadOnlyList<ApplicationStatus> _allowedMoves = Array.Empty<ApplicationStatus>();
+    private IReadOnlyList<Interview> _interviews = Array.Empty<Interview>();
+    private bool _interviewsAvailable;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        ApplicationService.ApplicationsChanged += OnApplicationsChanged;
+    }
+
+    /// <summary>Runs on first load and whenever the URL changes to another application.</summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _error = null;
+            _application = await ApplicationService.GetByIdAsync(Id);
+            if (_application == null)
+            {
+                return;
+            }
+
+            // Highlight skills with Adam's extractor; a word or phrase counts when it is exactly one skill.
+            _segments = SkillHighlighter.Split(_application.JobDescription, phrase =>
+            {
+                IReadOnlyList<string> found = SkillExtractor.Extract(phrase);
+                return found.Count == 1 ? found[0] : null;
+            });
+            _skills = SkillHighlighter.DistinctSkills(_segments);
+
+            ApplicationStatus furthest = _application.StageHistory
+                .Append(new StageEvent { ToStatus = _application.Status })
+                .FurthestPipelineStatus();
+            _allowedMoves = ApplicationStatusRules.AllowedTargets(_application.Status, furthest);
+
+            await LoadInterviewsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load this application: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Grace's interview service (G3) may not be registered yet. Until it is, the section shows a note
+    /// instead of failing, so this page works on its own.
+    /// </summary>
+    private async Task LoadInterviewsAsync()
+    {
+        var interviewService = Services.GetService(typeof(IInterviewService)) as IInterviewService;
+        _interviewsAvailable = interviewService != null;
+        _interviews = interviewService == null
+            ? Array.Empty<Interview>()
+            : await interviewService.GetByApplicationAsync(Id);
+    }
+
+    private async Task MoveAsync(ApplicationStatus target)
+    {
+        try
+        {
+            await ApplicationService.ChangeStatusAsync(Id, target);
+            Snackbar.Add($"Moved to {target.ToDisplayText()}.", Severity.Success);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not move the application: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task EditAsync()
+    {
+        var parameters = new DialogParameters<ApplicationFormDialog> { { dialog => dialog.ApplicationId, Id } };
+        IDialogReference dialog = await DialogService.ShowAsync<ApplicationFormDialog>("Edit application", parameters, FormOptions);
+        DialogResult? result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Changes saved.", Severity.Success);
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Delete application",
+            $"Delete \"{_application?.RoleTitle}\" at {_application?.Company?.Name}? Its stage history and interviews are deleted too.",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await ApplicationService.DeleteAsync(Id);
+            Snackbar.Add("Application deleted.", Severity.Info);
+            Navigation.NavigateTo("/applications");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not delete: {ex.Message}", Severity.Error);
+        }
+    }
+
+    /// <summary>Reload when this application changes (moved, edited), on the UI thread.</summary>
+    private void OnApplicationsChanged(object? sender, ApplicationChangedEventArgs e)
+    {
+        if (e.ApplicationId != Id || e.Kind == ApplicationChangeKind.Deleted)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        ApplicationService.ApplicationsChanged -= OnApplicationsChanged;
+    }
+
+    private string SalaryText() => (_application?.SalaryMin, _application?.SalaryMax) switch
+    {
+        (decimal min, decimal max) when min != max => $"${min:N0} – ${max:N0}",
+        (decimal min, _) => $"${min:N0}",
+        (null, decimal max) => $"${max:N0}",
+        _ => "Not stated"
+    };
+
+    private static Color StatusColor(ApplicationStatus status) => status switch
+    {
+        ApplicationStatus.Offer or ApplicationStatus.Accepted => Color.Success,
+        ApplicationStatus.Interview or ApplicationStatus.FinalRound => Color.Info,
+        ApplicationStatus.Rejected or ApplicationStatus.Ghosted => Color.Error,
+        ApplicationStatus.Withdrawn => Color.Warning,
+        _ => Color.Default
+    };
+}
