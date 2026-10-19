@@ -33,6 +33,7 @@ builder.Services.AddScoped<IInterviewService, InterviewService>();           // 
 // G2: replace the demo adapter when S1 provides totals, history and its creation route.
 builder.Services.AddScoped<IDashboardApplicationSource, DemoDashboardApplicationSource>();
 builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<ImportExportService>();                               // G5 (Grace)
 
 var app = builder.Build();
 
