@@ -1,0 +1,642 @@
+@page "/settings"
+@* Owner: Grace (G6). The user's profile (name, target role, overview, resume file) and "my skills", which make the fit
+   scores and skill gaps on the analytics and details pages personal; plus resetting the demo data. *@
+@using System.ComponentModel.DataAnnotations
+@using JobTracker.Analytics.Text
+@using JobTracker.Core.Entities
+@using JobTracker.Core.Enums
+@using JobTracker.Data.Profile
+@using JobTracker.Data.Services
+@inject IProfileService ProfileService
+@inject ISkillExtractor SkillExtractor
+@inject DemoDataService DemoData
+@inject ResumeFileStore ResumeFiles
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Profile</PageTitle>
+
+<div class="mb-4">
+    <MudText Typo="Typo.h4">Profile</MudText>
+    <MudText Typo="Typo.body2">Describe yourself so fit scores and skill gaps are about you.</MudText>
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_error != null)
+{
+    <MudAlert Severity="Severity.Error">
+        @_error
+        <MudButton Variant="Variant.Text" Size="Size.Small" Class="ml-2" OnClick="LoadAsync">Try again</MudButton>
+    </MudAlert>
+}
+else
+{
+    @if (_resetDone)
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="() => _resetDone = false">
+            The demo data has been restored.
+        </MudAlert>
+    }
+
+    <MudGrid Spacing="3">
+        @* ---------- Profile ---------- *@
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <div class="d-flex align-center justify-space-between mb-2">
+                    <MudText Typo="Typo.h6">About you</MudText>
+                    @if (IsDirty)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Unsaved changes</MudChip>
+                    }
+                </div>
+
+                <EditForm Model="_form" OnValidSubmit="SaveProfileAsync">
+                    <DataAnnotationsValidator />
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Name *" @bind-Value="_form.FullName" For="@(() => _form.FullName)" Immediate="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Target role" @bind-Value="_form.TargetRole" For="@(() => _form.TargetRole)" Immediate="true"
+                                          Placeholder="e.g. Graduate Software Engineer" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField Label="Overview" @bind-Value="_form.ResumeText" For="@(() => _form.ResumeText)" Lines="12"
+                                          Immediate="true" DebounceInterval="400"
+                                          HelperText="@($"Your experience, projects and skills in your own words. It is compared with each job description. {_form.ResumeText.Length:N0} / {ProfileForm.MaxOverviewLength:N0} characters")" />
+                        </MudItem>
+                    </MudGrid>
+
+                    @if (string.IsNullOrWhiteSpace(_form.ResumeText))
+                    {
+                        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3">
+                            Without an overview, fit scores can only use the skills you tick.
+                        </MudAlert>
+                    }
+
+                    <div class="d-flex justify-end gap-2 mt-4">
+                        <MudButton Variant="Variant.Text" OnClick="UndoChanges" Disabled="@(!IsDirty || _saving)">Undo changes</MudButton>
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!IsDirty || _saving)">
+                            @(_saving ? "Saving…" : "Save profile")
+                        </MudButton>
+                    </div>
+                </EditForm>
+
+                @* ---------- Resume file: saved as soon as it is uploaded, separate from the form above ---------- *@
+                <MudDivider Class="my-4" />
+                <MudText Typo="Typo.subtitle1" Class="mb-1">Resume file</MudText>
+                @if (_resume == null)
+                {
+                    <MudText Typo="Typo.body2" Class="mb-2">No resume uploaded. Keep a copy here to open it while you apply.</MudText>
+                }
+                else
+                {
+                    <div class="d-flex flex-wrap align-center gap-2 mb-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Description" Color="Color.Primary" />
+                        <div class="flex-grow-1" style="min-width:0">
+                            <MudLink Href="@ResumeLink(download: false)" Target="_blank" Typo="Typo.body1" Style="word-break:break-all">@_resume.FileName</MudLink>
+                            <MudText Typo="Typo.caption" Class="d-block">
+                                @FileSizeText(_resume.SizeBytes) · uploaded @_resume.UploadedAt.ToString("d MMM yyyy, h:mm tt")
+                            </MudText>
+                        </div>
+                        <MudTooltip Text="Download">
+                            <MudIconButton Icon="@Icons.Material.Filled.Download" Size="Size.Small" Href="@ResumeLink(download: true)" />
+                        </MudTooltip>
+                        <MudTooltip Text="Remove">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                           OnClick="RemoveResumeAsync" Disabled="_uploadingResume" />
+                        </MudTooltip>
+                    </div>
+                }
+
+                <div class="d-flex flex-wrap align-center gap-2">
+                    <MudFileUpload T="IBrowserFile" Accept="@ResumeFileStore.AcceptAttribute" FilesChanged="UploadResumeAsync" Disabled="_uploadingResume">
+                        <ActivatorContent>
+                            <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.UploadFile" Disabled="_uploadingResume">
+                                @(_uploadingResume ? "Uploading…" : _resume == null ? "Upload resume" : "Replace")
+                            </MudButton>
+                        </ActivatorContent>
+                    </MudFileUpload>
+                    <MudText Typo="Typo.caption">PDF, Word, OpenDocument, RTF or text, up to @(ResumeFileStore.MaxFileSize / 1024 / 1024) MB.</MudText>
+                </div>
+                @if (_resumeFileError != null)
+                {
+                    <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2" ShowCloseIcon="true" CloseIconClicked="() => _resumeFileError = null">
+                        @_resumeFileError
+                    </MudAlert>
+                }
+            </MudPaper>
+        </MudItem>
+
+        @* ---------- My skills ---------- *@
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6">My skills</MudText>
+
+                @* Add a skill that isn't in the list. Known skills that match the typed text are offered as chips. *@
+                <div class="d-flex flex-wrap align-start gap-2 mt-2">
+                    <MudTextField T="string" @ref="_newSkillField" @key="_newSkillFieldKey" Label="Add a skill" Placeholder="e.g. Figma or GraphQL"
+                                  Value="_newSkillText" ValueChanged="OnNewSkillTextChanged" Immediate="true" OnKeyDown="OnNewSkillKeyDown"
+                                  Class="flex-grow-1" Style="min-width:200px"
+                                  Error="_newSkillError != null" ErrorText="@_newSkillError" HelperText="@NewSkillHint" />
+                    @if (NewSkill is { Known: false })
+                    {
+                        <MudSelect T="SkillCategory" Label="Category" @bind-Value="_newSkillCategory" Style="min-width:160px">
+                            @foreach (SkillCategory category in Enum.GetValues<SkillCategory>())
+                            {
+                                <MudSelectItem Value="category">@CategoryText(category)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mt-3"
+                               OnClick="AddSkillAsync" Disabled="@(NewSkill is null || _addingSkill)">Add</MudButton>
+                </div>
+                @if (KnownMatches.Count > 0)
+                {
+                    <div class="d-flex flex-wrap align-center gap-1 mt-1">
+                        <MudText Typo="Typo.caption">Known skills:</MudText>
+                        @foreach (string name in KnownMatches)
+                        {
+                            <MudChip T="string" Value="@name" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                     Icon="@Icons.Material.Filled.Add" Disabled="_addingSkill" OnClick="() => AddKnownSkillAsync(name)">@name</MudChip>
+                        }
+                    </div>
+                }
+                <div class="mb-3"></div>
+
+                @if (_skills.Count == 0)
+                {
+                    <MudText Typo="Typo.body2">You have no skills listed yet. Add one above, or reset the demo data below to restore the starting list.</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="mb-3">
+                        Click a skill to add it to your profile or remove it. You have @_skills.Count(skill => skill.InMyProfile) of @_skills.Count.
+                    </MudText>
+
+                    @if (Suggestions.Count > 0)
+                    {
+                        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3" NoIcon="true">
+                            <div class="d-flex flex-wrap align-center gap-2">
+                                <span>Your overview mentions <b>@string.Join(", ", Suggestions.Select(skill => skill.Name))</b>, which you haven't ticked.</span>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info" OnClick="AddSuggestionsAsync"
+                                           Disabled="_busySkills.Count > 0">Add @(Suggestions.Count == 1 ? "it" : "them")</MudButton>
+                            </div>
+                        </MudAlert>
+                    }
+
+                    @foreach (IGrouping<SkillCategory, Skill> group in _skills.GroupBy(skill => skill.Category).OrderBy(group => group.Key))
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mt-2">@CategoryText(group.Key)</MudText>
+                        <div class="d-flex flex-wrap gap-1">
+                            @foreach (Skill skill in group.OrderBy(skill => skill.Name))
+                            {
+                                <MudChip T="string" Value="@skill.Name"
+                                         Color="@(skill.InMyProfile ? Color.Primary : Color.Default)"
+                                         Variant="@(skill.InMyProfile ? Variant.Filled : Variant.Outlined)"
+                                         Icon="@(skill.InMyProfile ? Icons.Material.Filled.Check : Icons.Material.Filled.Add)"
+                                         Disabled="_busySkills.Contains(skill.Id)"
+                                         OnClick="() => ToggleSkillAsync(skill)">@skill.Name</MudChip>
+                            }
+                        </div>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+
+        @* ---------- Reset ---------- *@
+        <MudItem xs="12">
+            <MudPaper Class="pa-4" Elevation="0" Outlined="true" Style="border-color:var(--mud-palette-error)">
+                <div class="d-flex flex-wrap align-center justify-space-between gap-3">
+                    <div>
+                        <MudText Typo="Typo.h6">Reset demo data</MudText>
+                        <MudText Typo="Typo.body2">
+                            Deletes everything you have added or changed (applications, companies, interviews, your profile, skills and resume file)
+                            and restores the demo data. This can't be undone; download a JSON backup first if you want to keep anything.
+                        </MudText>
+                    </div>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.RestartAlt"
+                               OnClick="ResetAsync" Disabled="_resetting">
+                        @(_resetting ? "Resetting…" : "Reset demo data")
+                    </MudButton>
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    /// <summary>Set to true (?reset=true) after a reset reloads the page, to show the success message.</summary>
+    [SupplyParameterFromQuery(Name = "reset")]
+    public bool ResetJustDone { get; set; }
+
+    private ProfileForm _form = new ProfileForm();
+    private UserProfile _saved = new UserProfile();
+    private List<Skill> _skills = new List<Skill>();
+    private readonly HashSet<int> _busySkills = new HashSet<int>();
+    private MudTextField<string>? _newSkillField;
+    private int _newSkillFieldKey;
+    private bool _focusNewSkillField;
+    private string? _newSkillText;
+    private string? _newSkillError;
+    private SkillCategory _newSkillCategory = SkillCategory.Other;
+    private bool _addingSkill;
+    private bool _loading = true;
+    private bool _saving;
+    private StoredResume? _resume;
+    private bool _uploadingResume;
+    private string? _resumeFileError;
+    private bool _resetting;
+    private bool _resetDone;
+    private string? _error;
+
+    /// <summary>True when the form differs from what is saved.</summary>
+    private bool IsDirty =>
+        _form.FullName.Trim() != _saved.FullName
+        || (string.IsNullOrWhiteSpace(_form.TargetRole) ? null : _form.TargetRole.Trim()) != _saved.TargetRole
+        || _form.ResumeText.Trim() != _saved.ResumeText;
+
+    /// <summary>Skills the overview mentions that the user hasn't ticked, using Adam's skill extractor.</summary>
+    private IReadOnlyList<Skill> Suggestions
+    {
+        get
+        {
+            var mentioned = SkillExtractor.Extract(_form.ResumeText).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return _skills.Where(skill => !skill.InMyProfile && mentioned.Contains(skill.Name)).OrderBy(skill => skill.Name).ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _resetDone = ResetJustDone;
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusNewSkillField && _newSkillField != null)
+        {
+            _focusNewSkillField = false;
+            await _newSkillField.FocusAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _error = null;
+            _saved = await ProfileService.GetProfileAsync();
+            _form = ProfileForm.From(_saved);
+            _skills = (await ProfileService.GetSkillsAsync()).ToList();
+            _resume = ResumeFiles.Get();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load your profile: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>Runs after the field rules pass. The service validates again before saving.</summary>
+    private async Task SaveProfileAsync()
+    {
+        _saving = true;
+        try
+        {
+            UserProfile profile = _form.ApplyTo(_saved);
+            await ProfileService.SaveProfileAsync(profile);
+            _saved = await ProfileService.GetProfileAsync();
+            _form = ProfileForm.From(_saved);
+            Snackbar.Add("Profile saved.", Severity.Success);
+        }
+        catch (ValidationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not save: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void UndoChanges() => _form = ProfileForm.From(_saved);
+
+    /// <summary>Saves the uploaded file as the user's resume, replacing any earlier one. The overview text isn't changed.</summary>
+    private async Task UploadResumeAsync(IBrowserFile? file)
+    {
+        if (file == null)
+        {
+            return;
+        }
+
+        _resumeFileError = null;
+        if (file.Size > ResumeFileStore.MaxFileSize)
+        {
+            _resumeFileError = $"{file.Name} is {FileSizeText(file.Size)}; the limit is {ResumeFileStore.MaxFileSize / 1024 / 1024} MB.";
+            return;
+        }
+
+        _uploadingResume = true;
+        try
+        {
+            await using Stream stream = file.OpenReadStream(ResumeFileStore.MaxFileSize);
+            _resume = await ResumeFiles.SaveAsync(stream, file.Name);
+            Snackbar.Add($"Saved {_resume.FileName}.", Severity.Success);
+        }
+        catch (FormatException ex)
+        {
+            _resumeFileError = $"{file.Name}: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _resumeFileError = $"Could not save {file.Name}: {ex.Message}";
+        }
+        finally
+        {
+            _uploadingResume = false;
+        }
+    }
+
+    private async Task RemoveResumeAsync()
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Remove resume?", $"Remove {_resume?.FileName}? Your overview and skills stay as they are.",
+            yesText: "Remove", cancelText: "Cancel");
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        try
+        {
+            ResumeFiles.Delete();
+            _resume = null;
+            Snackbar.Add("Resume removed.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            _resumeFileError = $"Could not remove the resume: {ex.Message}";
+        }
+    }
+
+    /// <summary>The resume's address. The upload time is added so the browser doesn't show an older copy after Replace.</summary>
+    private string ResumeLink(bool download) =>
+        $"{ResumeEndpoints.Url}?v={_resume?.UploadedAt.Ticks}" + (download ? "&download=true" : string.Empty);
+
+    /// <summary>"240 KB" or "1.2 MB".</summary>
+    private static string FileSizeText(long bytes) =>
+        bytes < 1024 * 1024 ? $"{Math.Max(1, bytes / 1024)} KB" : $"{bytes / 1024.0 / 1024.0:0.#} MB";
+
+    /// <summary>Adds or removes one skill. The chip changes straight away and changes back if the save fails.</summary>
+    private async Task ToggleSkillAsync(Skill skill)
+    {
+        if (!_busySkills.Add(skill.Id))
+        {
+            return;
+        }
+
+        bool wanted = !skill.InMyProfile;
+        skill.InMyProfile = wanted;
+        try
+        {
+            await ProfileService.SetInProfileAsync(skill.Id, wanted);
+        }
+        catch (KeyNotFoundException)
+        {
+            Snackbar.Add($"\"{skill.Name}\" no longer exists. Reloading the list.", Severity.Warning);
+            _skills = (await ProfileService.GetSkillsAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            skill.InMyProfile = !wanted;
+            Snackbar.Add($"Could not update \"{skill.Name}\": {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _busySkills.Remove(skill.Id);
+        }
+    }
+
+    private async Task AddSuggestionsAsync()
+    {
+        IReadOnlyList<Skill> suggestions = Suggestions;
+        foreach (Skill skill in suggestions)
+        {
+            await ToggleSkillAsync(skill);
+        }
+
+        Snackbar.Add($"Added {string.Join(", ", suggestions.Select(skill => skill.Name))}.", Severity.Success);
+    }
+
+    /// <summary>
+    /// The skill typed in the "Add a skill" box, or null when it is blank. A name the skill extractor knows
+    /// (e.g. "React.js" or "k8s") becomes its canonical name ("react", "kubernetes") with its category, so the
+    /// analysis matches it in job descriptions. Anything else is kept as typed, in lower case.
+    /// </summary>
+    private (string Name, SkillCategory Category, bool Known)? NewSkill
+    {
+        get
+        {
+            string text = _newSkillText?.Trim() ?? string.Empty;
+            if (text.Length == 0)
+            {
+                return null;
+            }
+
+            string? known = SkillDictionary.FindSkill(string.Join(" ", Tokenizer.Tokenize(text)));
+            return known != null
+                ? (known, SkillDictionary.CategoryOf(known), true)
+                : (text.ToLowerInvariant(), _newSkillCategory, false);
+        }
+    }
+
+    /// <summary>Explains what will be added, under the box.</summary>
+    private string NewSkillHint => NewSkill switch
+    {
+        null => "Type a skill, then press Enter or Add.",
+        { Known: true } skill when !string.Equals(skill.Name, _newSkillText?.Trim(), StringComparison.OrdinalIgnoreCase)
+            => $"Will be added as \"{skill.Name}\".",
+        { Known: true } => "A skill the analysis recognises in job descriptions.",
+        _ => "Not one the analysis recognises yet, so it won't change fit scores. Pick a category."
+    };
+
+    private void OnNewSkillTextChanged(string? text)
+    {
+        _newSkillText = text;
+        _newSkillError = null;
+    }
+
+    /// <summary>Up to six known skills that aren't in the list yet and contain the typed text; names starting with it come first.</summary>
+    private IReadOnlyList<string> KnownMatches
+    {
+        get
+        {
+            string typed = _newSkillText?.Trim() ?? string.Empty;
+            if (typed.Length == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var listed = _skills.Select(skill => skill.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return SkillDictionary.Skills
+                .Where(name => !listed.Contains(name) && name.Contains(typed, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(name => name.StartsWith(typed, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(name => name)
+                .Take(6)
+                .ToList();
+        }
+    }
+
+    /// <summary>Enter in the box adds the skill.</summary>
+    private async Task OnNewSkillKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter" && NewSkill is not null && !_addingSkill)
+        {
+            await AddSkillAsync();
+        }
+    }
+
+    private async Task AddKnownSkillAsync(string name)
+    {
+        _newSkillText = name;
+        await AddSkillAsync();
+    }
+
+    /// <summary>Adds the typed skill, ticked. A skill already in the list is ticked instead of added twice.</summary>
+    private async Task AddSkillAsync()
+    {
+        if (NewSkill is not { } wanted)
+        {
+            _newSkillError = "Enter a skill name.";
+            return;
+        }
+
+        Skill? existing = _skills.FirstOrDefault(skill => string.Equals(skill.Name, wanted.Name, StringComparison.OrdinalIgnoreCase));
+        if (existing is { InMyProfile: true })
+        {
+            _newSkillError = $"\"{existing.Name}\" is already in your profile.";
+            return;
+        }
+
+        _addingSkill = true;
+        try
+        {
+            if (existing != null)
+            {
+                await ToggleSkillAsync(existing);
+                Snackbar.Add($"\"{existing.Name}\" was already in the list, so it is now ticked.", Severity.Info);
+            }
+            else
+            {
+                Skill added = await ProfileService.AddSkillAsync(wanted.Name, wanted.Category);
+                _skills.Add(added);
+                Snackbar.Add($"Added \"{added.Name}\" to your skills.", Severity.Success);
+            }
+
+            // MudBlazor keeps the typed text in a box that has focus (e.g. after Enter), so swap in a fresh
+            // box (new @key) instead of clearing this one, and focus it once it is drawn.
+            _newSkillText = null;
+            _newSkillCategory = SkillCategory.Other;
+            _newSkillFieldKey++;
+            _focusNewSkillField = true;
+        }
+        catch (ValidationException ex)
+        {
+            _newSkillError = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            _newSkillError = $"Could not add the skill: {ex.Message}";
+        }
+        finally
+        {
+            _addingSkill = false;
+        }
+    }
+
+    /// <summary>Asks first, then resets and reloads the whole app so every page shows the restored data.</summary>
+    private async Task ResetAsync()
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Reset demo data?",
+            "Everything you have added or changed (applications, companies, interviews, your profile, skills and resume file) will be deleted "
+                + "and the demo data restored. This can't be undone.",
+            yesText: "Reset",
+            cancelText: "Cancel");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        _resetting = true;
+        try
+        {
+            await DemoData.ResetAsync();
+            Navigation.NavigateTo("/settings?reset=true", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not reset the demo data: {ex.Message}", Severity.Error);
+            _resetting = false;
+        }
+    }
+
+    /// <summary>The category as a heading, e.g. "Cloud & DevOps".</summary>
+    private static string CategoryText(SkillCategory category) => category switch
+    {
+        SkillCategory.Language => "Languages",
+        SkillCategory.Framework => "Frameworks",
+        SkillCategory.Data => "Data",
+        SkillCategory.Cloud => "Cloud & DevOps",
+        SkillCategory.Practice => "Tools & practices",
+        SkillCategory.Soft => "Soft skills",
+        _ => "Other"
+    };
+
+    /// <summary>The profile form's fields and their rules. Kept apart from UserProfile so the entity (K1) is unchanged.</summary>
+    private sealed class ProfileForm
+    {
+        /// <summary>The longest overview accepted: about ten pages of text.</summary>
+        public const int MaxOverviewLength = 20_000;
+
+        [Required(ErrorMessage = "Name is required.")]
+        [StringLength(100, ErrorMessage = "Name can't be longer than 100 characters.")]
+        public string FullName { get; set; } = string.Empty;
+
+        [StringLength(100, ErrorMessage = "Target role can't be longer than 100 characters.")]
+        public string? TargetRole { get; set; }
+
+        [StringLength(MaxOverviewLength, ErrorMessage = "The overview can't be longer than 20,000 characters.")]
+        public string ResumeText { get; set; } = string.Empty;
+
+        public static ProfileForm From(UserProfile profile) => new ProfileForm
+        {
+            FullName = profile.FullName,
+            TargetRole = profile.TargetRole,
+            ResumeText = profile.ResumeText
+        };
+
+        /// <summary>A copy of the saved profile with this form's trimmed values.</summary>
+        public UserProfile ApplyTo(UserProfile saved) => new UserProfile
+        {
+            Id = saved.Id,
+            FullName = FullName.Trim(),
+            TargetRole = string.IsNullOrWhiteSpace(TargetRole) ? null : TargetRole.Trim(),
+            ResumeText = ResumeText.Trim()
+        };
+    }
+}

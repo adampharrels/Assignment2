@@ -15,5 +15,8 @@ publish/
 *.db-shm
 *.db-wal
 
+# Uploaded files such as the user's resume (G6); never commit them
+App_Data/
+
 # macOS
 .DS_Store
