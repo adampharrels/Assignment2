@@ -1,7 +1,5 @@
 # Grad Job Tracker
 
-> Work in progress. Update the screens and run steps before submission.
-
 A graduate job-application tracker whose main feature is **analytics**. It tracks companies, applications,
 interview stages, salaries, locations and job descriptions, then uses statistics, TF-IDF text mining and
 hand-written machine-learning models to show what is (and isn't) getting you interviews.
@@ -15,7 +13,8 @@ hand-written machine-learning models to show what is (and isn't) getting you int
 2. In Solution Explorer, right-click **JobTracker.Web** and choose **Set as Startup Project**.
 3. Press **F5**. NuGet packages restore automatically. The app opens in the browser at http://localhost:5080.
 4. On first run a SQLite database (`jobtracker.db`) is created and filled with demo data.
-   To reset it, close the app and delete `src/JobTracker.Web/jobtracker.db`.
+   To start over, use **Reset demo data** on the Profile page, or close the app and delete
+   `src/JobTracker.Web/jobtracker.db`.
 
 Tests: **Test → Run All Tests** (NUnit, project `JobTracker.Tests`).
 
@@ -28,7 +27,7 @@ dotnet test
 ## Screens
 | Screen | What it does |
 |---|---|
-| Dashboard | KPIs, funnel, top insights, upcoming interviews, recent activity |
+| Dashboard | KPIs, upcoming interviews, recent activity and top insights; refreshes automatically |
 | Board | Drag-and-drop Kanban pipeline |
 | Applications | Search / filter / add / edit / delete applications |
 | Application details | Description with highlighted skills, stage timeline, interviews, predicted interview chance |
