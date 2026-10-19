@@ -66,7 +66,8 @@ jobs:
   verify-submission:
     name: Verify zip compiles on Windows
     needs: package
-    runs-on: windows-latest
+    # Same as a lab PC: Visual Studio 2022 with newer SDKs installed too, and the global.json we submit.
+    runs-on: windows-2022
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -76,13 +77,16 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
-      - name: Unzip into a clean folder and build (what the tutor will do)
+      - name: Unzip into a clean folder and build with Visual Studio 2022 (what the tutor will do)
         shell: pwsh
         run: |
           Expand-Archive JobTracker-submission.zip -DestinationPath clean
           cd clean/JobTracker
-          dotnet new globaljson --sdk-version 9.0.100 --roll-forward latestFeature --force
-          dotnet build JobTracker.sln --configuration Release
+          "SDK picked by global.json: $(dotnet --version)"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          & $msbuild JobTracker.sln /restore /p:Configuration=Release /m /v:minimal /nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet test JobTracker.sln --configuration Release --no-build
 
   release:
