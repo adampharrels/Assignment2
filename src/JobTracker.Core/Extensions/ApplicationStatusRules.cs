@@ -15,6 +15,8 @@ namespace JobTracker.Core.Extensions;
 /// item was never sent, so it can only be withdrawn.</item>
 /// <item>Ghosted can be revived to a pipeline stage later than the furthest one reached, or exit.</item>
 /// <item>Accepted, Rejected and Withdrawn are terminal.</item>
+/// <item>To fix a mistake, an application can move back to any status it had earlier. Moving back undoes
+/// the later moves: they are removed from the history, so analytics never count a stage that was a mistake.</item>
 /// </list>
 /// </remarks>
 public static class ApplicationStatusRules
@@ -37,6 +39,11 @@ public static class ApplicationStatusRules
     /// <returns>A message to show the user, or null.</returns>
     public static string? GetMoveError(ApplicationStatus from, ApplicationStatus to, ApplicationStatus furthestPipelineStatus)
     {
+        if (!Enum.IsDefined(from) || !Enum.IsDefined(to) || !Enum.IsDefined(furthestPipelineStatus))
+        {
+            return "Choose a valid application status.";
+        }
+
         if (from == to)
         {
             return $"The application is already {from.ToDisplayText()}.";
@@ -105,6 +112,72 @@ public static class ApplicationStatusRules
             .Where(status => status.IsPipeline())
             .DefaultIfEmpty(ApplicationStatus.Wishlist)
             .Max();
+    }
+
+    /// <summary>
+    /// The statuses an application had before its current one, most recent first. Moving back to one of
+    /// them undoes every move made after it.
+    /// </summary>
+    /// <param name="history">The application's stage events, in any order.</param>
+    public static IReadOnlyList<ApplicationStatus> MoveBackTargets(this IEnumerable<StageEvent> history)
+    {
+        List<StageEvent> ordered = InOrder(history);
+        if (ordered.Count == 0)
+        {
+            return Array.Empty<ApplicationStatus>();
+        }
+
+        ApplicationStatus current = ordered[^1].ToStatus;
+        return ordered
+            .Take(ordered.Count - 1)
+            .Select(stageEvent => stageEvent.ToStatus)
+            .Reverse()
+            .Where(status => status != current)
+            .Distinct()
+            .ToList();
+    }
+
+    /// <summary>Explains why the application can't move back to a status, or returns null when it can.</summary>
+    /// <param name="history">The application's stage events, in any order.</param>
+    /// <param name="earlierStatus">The status to move back to.</param>
+    public static string? GetMoveBackError(IEnumerable<StageEvent> history, ApplicationStatus earlierStatus)
+    {
+        List<StageEvent> ordered = InOrder(history);
+        if (ordered.Count > 0 && ordered[^1].ToStatus == earlierStatus)
+        {
+            return $"The application is already {earlierStatus.ToDisplayText()}.";
+        }
+
+        return ordered.MoveBackTargets().Contains(earlierStatus)
+            ? null
+            : $"The application was never {earlierStatus.ToDisplayText()}, so it can't move back there.";
+    }
+
+    /// <summary>
+    /// The stage events that moving back to <paramref name="earlierStatus"/> undoes: every event after the
+    /// most recent one that reached that status.
+    /// </summary>
+    /// <param name="history">The application's stage events, in any order.</param>
+    /// <param name="earlierStatus">The status to move back to.</param>
+    /// <exception cref="InvalidOperationException">The application never had that status before.</exception>
+    public static IReadOnlyList<StageEvent> EventsUndoneByMovingBack(this IEnumerable<StageEvent> history, ApplicationStatus earlierStatus)
+    {
+        string? error = GetMoveBackError(history, earlierStatus);
+        if (error is not null)
+        {
+            throw new InvalidOperationException(error);
+        }
+
+        List<StageEvent> ordered = InOrder(history);
+        int keepUpTo = ordered.FindLastIndex(ordered.Count - 2, stageEvent => stageEvent.ToStatus == earlierStatus);
+        return ordered.Skip(keepUpTo + 1).ToList();
+    }
+
+    /// <summary>Oldest first; events saved at the same moment stay in the order they were saved.</summary>
+    private static List<StageEvent> InOrder(IEnumerable<StageEvent> history)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+        return history.OrderBy(stageEvent => stageEvent.ChangedAt).ThenBy(stageEvent => stageEvent.Id).ToList();
     }
 
     /// <summary>Checks a move whose target is a pipeline stage.</summary>

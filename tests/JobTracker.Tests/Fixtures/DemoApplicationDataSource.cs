@@ -1,7 +1,7 @@
 using JobTracker.Core.Analytics;
 using JobTracker.Core.Interfaces;
 
-namespace JobTracker.Analytics.Demo;
+namespace JobTracker.Tests.Fixtures;
 
 /// <summary>
 /// Generates 72 realistic random applications for testing the analytics without a database.
@@ -25,7 +25,7 @@ public class DemoApplicationDataSource : IApplicationDataSource
         new RoleTemplate("Graduate Data Analyst", 80_000, new[] { "SQL", "Python", "Power BI", "Excel" }, new[] { "Tableau", "statistics", "stakeholder management" }, new[] { "sql", "python" }),
         new RoleTemplate("Graduate Data Scientist", 102_000, new[] { "Python", "machine learning", "statistics", "SQL" }, new[] { "pandas", "scikit-learn", "A/B testing", "Airflow" }, new[] { "python", "sql" }),
         new RoleTemplate("Junior Full Stack Developer", 78_000, new[] { "React", "Node.js", "TypeScript", "PostgreSQL" }, new[] { "Docker", "REST APIs", "Git" }, new[] { "react", "typescript" }),
-        new RoleTemplate("Graduate Cloud Engineer", 92_000, new[] { "AWS", "Terraform", "Linux", "Docker" }, new[] { "Kubernetes", "Python", "CI/CD" }, new string[0]),
+        new RoleTemplate("Graduate Cloud Engineer", 92_000, new[] { "AWS", "Terraform", "Linux", "Docker" }, new[] { "Kubernetes", "Python", "CI/CD" }, Array.Empty<string>()),
         new RoleTemplate("Graduate Cyber Security Analyst", 76_000, new[] { "networking", "Linux", "Python", "SIEM" }, new[] { "incident response", "Splunk" }, new[] { "python" }),
         new RoleTemplate("Graduate Technology Consultant", 75_000, new[] { "SQL", "Excel", "Agile", "communication" }, new[] { "Azure", "Power BI", "stakeholder management" }, new[] { "sql" }),
         new RoleTemplate("Graduate Machine Learning Engineer", 100_000, new[] { "Python", "PyTorch", "machine learning", "Docker" }, new[] { "NLP", "AWS", "MLOps" }, new[] { "python" })

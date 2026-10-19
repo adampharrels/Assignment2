@@ -53,15 +53,6 @@ public static class Tokenizer
         }
     }
 
-    /// <summary>Returns pairs of neighbouring tokens joined by a space, e.g. "machine learning".</summary>
-    public static IEnumerable<string> Bigrams(IReadOnlyList<string> tokens)
-    {
-        for (int i = 0; i + 1 < tokens.Count; i++)
-        {
-            yield return tokens[i] + " " + tokens[i + 1];
-        }
-    }
-
     /// <summary>Letters and digits, plus the symbols that appear inside tech terms.</summary>
     private static bool IsTokenCharacter(char character)
     {

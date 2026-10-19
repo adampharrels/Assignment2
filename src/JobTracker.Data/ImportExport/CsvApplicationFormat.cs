@@ -15,6 +15,8 @@ public class CsvApplicationFormat : ApplicationFileFormat
     /// <summary>A byte-order mark, so Excel opens the file as UTF-8 (otherwise "–" or "é" show as junk).</summary>
     private const char ByteOrderMark = '﻿';
 
+    private static readonly char[] QuotedCharacters = { ',', '"', '\r', '\n' };
+
     /// <inheritdoc />
     public override string Name => "CSV";
 
@@ -96,7 +98,7 @@ public class CsvApplicationFormat : ApplicationFileFormat
             return string.Empty;
         }
 
-        bool needsQuotes = value.IndexOfAny(new[] { ',', '"', '\r', '\n' }) >= 0 || value.Trim().Length != value.Length;
+        bool needsQuotes = value.IndexOfAny(QuotedCharacters) >= 0 || value.Trim().Length != value.Length;
         return needsQuotes ? $"\"{value.Replace("\"", "\"\"")}\"" : value;
     }
 

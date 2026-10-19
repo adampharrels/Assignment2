@@ -138,18 +138,21 @@ else
                 <MudTd DataLabel="Role">@context.RoleTitle</MudTd>
                 <MudTd DataLabel="Company">@context.Company?.Name</MudTd>
                 <MudTd DataLabel="Status">
-                    <MudChip T="string" Size="Size.Small" Color="StatusColor(context.Status)" Variant="Variant.Text">@context.Status.ToDisplayText()</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="ApplicationPresentation.StatusColor(context.Status)" Variant="Variant.Text">@context.Status.ToDisplayText()</MudChip>
                 </MudTd>
                 <MudTd DataLabel="Location">@context.Location (@context.WorkMode.ToDisplayText())</MudTd>
                 <MudTd DataLabel="Salary">@SalaryText(context)</MudTd>
                 <MudTd DataLabel="Applied">@(context.DateApplied?.ToString("d MMM yyyy") ?? "Not yet")</MudTd>
                 <MudTd DataLabel="Actions" Style="text-align:right">
-                    <MudTooltip Text="Edit">
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditAsync(context)" />
-                    </MudTooltip>
-                    <MudTooltip Text="Delete">
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteAsync(context)" />
-                    </MudTooltip>
+                    @* Stop the click reaching the row, which would open the details page. *@
+                    <span @onclick:stopPropagation="true">
+                        <MudTooltip Text="Edit">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditAsync(context)" />
+                        </MudTooltip>
+                        <MudTooltip Text="Delete">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteAsync(context)" />
+                        </MudTooltip>
+                    </span>
                 </MudTd>
             </RowTemplate>
         </MudTable>
@@ -394,15 +397,5 @@ else
         (decimal min, _) => $"${min / 1000:0}k",
         (null, decimal max) => $"${max / 1000:0}k",
         _ => "–"
-    };
-
-    /// <summary>Green for good news, red for endings, blue for interviews, grey for the rest.</summary>
-    private static Color StatusColor(ApplicationStatus status) => status switch
-    {
-        ApplicationStatus.Offer or ApplicationStatus.Accepted => Color.Success,
-        ApplicationStatus.Interview or ApplicationStatus.FinalRound => Color.Info,
-        ApplicationStatus.Rejected or ApplicationStatus.Ghosted => Color.Error,
-        ApplicationStatus.Withdrawn => Color.Warning,
-        _ => Color.Default
     };
 }

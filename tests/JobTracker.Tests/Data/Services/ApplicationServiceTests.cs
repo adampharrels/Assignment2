@@ -115,7 +115,7 @@ public class ApplicationServiceTests
         await _service.DeleteAsync(created.Id);
 
         await using JobTrackerDbContext check = _database.CreateDbContext();
-        Assert.Multiple(async () =>
+        await Assert.MultipleAsync(async () =>
         {
             Assert.That(await check.Applications.AnyAsync(), Is.False);
             Assert.That(await check.StageEvents.AnyAsync(), Is.False);
@@ -204,6 +204,76 @@ public class ApplicationServiceTests
         var records = await _service.GetApplicationsAsync();
 
         Assert.That(records.Select(record => record.CompanyName), Is.EqualTo(new[] { "Canva" }));
+    }
+
+    [Test]
+    public async Task CreateAsync_CompanyNameTooLong_DoesNotSaveApplicationOrCompany()
+    {
+        string name = new('x', 201);
+        Assert.ThrowsAsync<ValidationException>(() => _service.CreateAsync(NewApplication(), name));
+        Assert.That(await _service.GetAllAsync(), Is.Empty);
+        await using var db = _database.CreateDbContext();
+        Assert.That(await db.Companies.AnyAsync(company => company.Name == name), Is.False);
+    }
+
+    [Test]
+    public async Task ChangeStatusAsync_UndefinedStatus_DoesNotSaveOrRaiseEvent()
+    {
+        var application = await _service.CreateAsync(NewApplication(), "Canva");
+        bool raised = false;
+        _service.ApplicationsChanged += (_, _) => raised = true;
+        Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _service.ChangeStatusAsync(application.Id, (ApplicationStatus)999));
+        var saved = await _service.GetByIdAsync(application.Id);
+        Assert.That(saved!.Status, Is.EqualTo(ApplicationStatus.Applied));
+        Assert.That(saved.StageHistory, Has.Count.EqualTo(1));
+        Assert.That(raised, Is.False);
+    }
+
+    [Test]
+    public async Task MoveBackAsync_UndoesTheLaterMoves()
+    {
+        JobApplication created = await _service.CreateAsync(NewApplication(), "Canva");
+        await _service.ChangeStatusAsync(created.Id, ApplicationStatus.Interview);
+        await _service.ChangeStatusAsync(created.Id, ApplicationStatus.Offer);
+
+        await _service.MoveBackAsync(created.Id, ApplicationStatus.Applied);
+
+        JobApplication reloaded = (await _service.GetByIdAsync(created.Id))!;
+        Assert.Multiple(() =>
+        {
+            Assert.That(reloaded.Status, Is.EqualTo(ApplicationStatus.Applied));
+            Assert.That(reloaded.StageHistory.Select(item => item.ToStatus), Is.EqualTo(new[] { ApplicationStatus.Applied }));
+        });
+    }
+
+    [Test]
+    public async Task MoveBackAsync_ToWishlist_ClearsTheAppliedDate()
+    {
+        JobApplication wishlist = NewApplication();
+        wishlist.Status = ApplicationStatus.Wishlist;
+        wishlist.DateApplied = null;
+        JobApplication created = await _service.CreateAsync(wishlist, "Canva");
+        await _service.ChangeStatusAsync(created.Id, ApplicationStatus.Applied);
+
+        await _service.MoveBackAsync(created.Id, ApplicationStatus.Wishlist);
+
+        JobApplication reloaded = (await _service.GetByIdAsync(created.Id))!;
+        Assert.Multiple(() =>
+        {
+            Assert.That(reloaded.Status, Is.EqualTo(ApplicationStatus.Wishlist));
+            Assert.That(reloaded.DateApplied, Is.Null);
+        });
+    }
+
+    [Test]
+    public async Task MoveBackAsync_StatusNeverReached_ThrowsAndKeepsTheStatus()
+    {
+        JobApplication created = await _service.CreateAsync(NewApplication(), "Canva");
+        await _service.ChangeStatusAsync(created.Id, ApplicationStatus.Interview);
+
+        Assert.ThrowsAsync<InvalidOperationException>(() => _service.MoveBackAsync(created.Id, ApplicationStatus.Assessment));
+        Assert.That((await _service.GetByIdAsync(created.Id))!.Status, Is.EqualTo(ApplicationStatus.Interview));
     }
 
     /// <summary>A valid, submitted application; tests change one thing at a time.</summary>

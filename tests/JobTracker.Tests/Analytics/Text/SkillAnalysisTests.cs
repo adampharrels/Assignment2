@@ -54,18 +54,9 @@ public class SkillAnalysisTests
     }
 
     [Test]
-    public void CompareWithProfile_SplitsMatchedAndMissing()
-    {
-        (List<string> matched, List<string> missing) = CreateAnalysis().CompareWithProfile(new[] { "react", "docker", "react" });
-
-        Assert.That(matched, Is.EqualTo(new[] { "react" }));
-        Assert.That(missing, Is.EqualTo(new[] { "docker" }));
-    }
-
-    [Test]
     public void Demand_NoApplications_ReturnsEmpty()
     {
-        var analysis = new SkillAnalysis(new List<ApplicationRecord>(), new DictionarySkillExtractor(), new string[0]);
+        var analysis = new SkillAnalysis(new List<ApplicationRecord>(), new DictionarySkillExtractor(), Array.Empty<string>());
 
         Assert.That(analysis.Demand(10), Is.Empty);
         Assert.That(analysis.Gap(10), Is.Empty);

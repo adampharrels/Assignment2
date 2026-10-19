@@ -1,4 +1,5 @@
 @page "/"
+@using JobTracker.Core.Calendar
 @using JobTracker.Core.Dashboard
 @using JobTracker.Data.Services
 @implements IAsyncDisposable
@@ -11,14 +12,9 @@
     <MudText Typo="Typo.h4">Dashboard</MudText>
     <MudStack Row="true">
         <MudButton Variant="Variant.Outlined" OnClick="RefreshAsync" Disabled="_loading">Refresh</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@_data?.Applications.AddApplicationUrl"
-                   Disabled="@(_data?.Applications.AddApplicationUrl is null)">Add application</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/applications?add=true">Add application</MudButton>
     </MudStack>
 </MudStack>
-@if (_data?.Applications.AddApplicationUrl is null)
-{
-    <MudText Typo="Typo.caption">Adding applications will be available when the application screen is connected.</MudText>
-}
 @if (_loading)
 {
     <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
@@ -29,10 +25,6 @@
 }
 @if (_data is not null)
 {
-    @if (_data.Applications.IsDemo)
-    {
-        <MudAlert Severity="Severity.Info" Class="my-4">Application totals and activity use demo submissions until application tracking is connected. Interviews come from the saved calendar data.</MudAlert>
-    }
     <div class="dashboard-kpis my-4">
         <StatTile Label="Total" Value="@_data.Applications.Total.ToString()" Detail="All tracked applications" />
         <StatTile Label="Submitted" Value="@_data.Summary.TotalApplications.ToString()" Detail="Sent to employers" />
@@ -58,7 +50,7 @@
                 {
                     <div class="my-3">
                         <MudText Typo="Typo.subtitle2">@interview.Type.ToDisplayText() · @ApplicationLabel(interview.ApplicationId)</MudText>
-                        <MudText>@SydneyTime(interview.ScheduledAt).ToString("ddd d MMM, HH:mm") Sydney time · @interview.DurationMinutes minutes</MudText>
+                        <MudText>@SydneyTime.FromUtc(interview.ScheduledAt).ToString("ddd d MMM, HH:mm") Sydney time · @interview.DurationMinutes minutes</MudText>
                         <MudText Typo="Typo.body2">@interview.LocationOrLink</MudText>
                     </div>
                 }
@@ -91,12 +83,6 @@
 }
 
 @code {
-    private static readonly TimeZoneInfo SydneyTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Australia/Sydney");
-
-    // SQLite returns an unspecified Kind; interview timestamps are stored as UTC.
-    private static DateTime SydneyTime(DateTime utc) =>
-        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), SydneyTimeZone);
-
     private DashboardSnapshot? _data;
 
     /// <summary>"Company · Role" for an interview, taken from the application's stage history.</summary>
@@ -105,6 +91,7 @@
         StageChange? change = _data?.Applications.Changes.FirstOrDefault(item => item.ApplicationId == applicationId);
         return change is null ? $"Application #{applicationId}" : $"{change.Company} · {change.Role}";
     }
+
     private bool _loading;
     private bool _error;
     private readonly CancellationTokenSource _lifetime = new();

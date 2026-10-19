@@ -15,7 +15,7 @@
 <div class="d-flex flex-wrap align-center justify-space-between gap-2 mb-2">
     <div>
         <MudText Typo="Typo.h4">Board</MudText>
-        <MudText Typo="Typo.body2">Drag a card to a new stage. Right-click a card for more actions.</MudText>
+        <MudText Typo="Typo.body2">Drag a card to a new stage, or back to an earlier one to undo a mistake. Right-click a card for more actions.</MudText>
     </div>
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddAsync">
         Add application
@@ -43,7 +43,7 @@ else
                               Style="@($"width:260px; min-width:260px; background-color:{ColumnBackground(column)};")">
                         <div class="d-flex align-center justify-space-between px-1 mb-2">
                             <MudText Typo="Typo.subtitle2">@column.Status.ToDisplayText()</MudText>
-                            <MudChip T="string" Size="Size.Small" Color="StatusColor(column.Status)" Variant="Variant.Text">@column.Count</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="ApplicationPresentation.StatusColor(column.Status)" Variant="Variant.Text">@column.Count</MudChip>
                         </div>
                         <MudDropZone T="JobApplication" Identifier="@column.Status.ToString()"
                                      Class="d-flex flex-column gap-2 flex-grow-1" Style="min-height:320px;" />
@@ -84,6 +84,12 @@ else
                         <MudMenuItem Icon="@Icons.Material.Filled.OpenInNew" OnClick="() => Open(context)">Open</MudMenuItem>
                         <MudMenuItem Icon="@Icons.Material.Filled.Edit" OnClick="() => EditAsync(context)">Edit</MudMenuItem>
                         <MudDivider />
+                        @if (PreviousStatus(context) is ApplicationStatus previous)
+                        {
+                            <MudMenuItem Icon="@Icons.Material.Filled.ArrowBack" OnClick="() => MoveBackAsync(context, previous)">
+                                Move back to @previous.ToDisplayText()
+                            </MudMenuItem>
+                        }
                         <MudMenuItem Icon="@Icons.Material.Filled.ThumbDown" Disabled="!CanMoveTo(context, ApplicationStatus.Rejected)"
                                      OnClick="() => MoveAsync(context, ApplicationStatus.Rejected)">Reject</MudMenuItem>
                         <MudMenuItem Icon="@Icons.Material.Filled.Undo" Disabled="!CanMoveTo(context, ApplicationStatus.Withdrawn)"
@@ -141,7 +147,8 @@ else
     }
 
     /// <summary>
-    /// Called when a card is dropped on a column. The service checks the status rules; if the move is not
+    /// Called when a card is dropped on a column. A drop on a status the application had earlier, that isn't
+    /// also a normal move, moves it back. Otherwise the service checks the status rules; if the move is not
     /// allowed it throws, the card stays in its old status (so it snaps back) and the reason is shown.
     /// </summary>
     private async Task OnItemDroppedAsync(MudItemDropInfo<JobApplication> dropInfo)
@@ -154,7 +161,14 @@ else
             return;
         }
 
-        await MoveAsync(application, target);
+        if (IsMoveBack(application, target))
+        {
+            await MoveBackAsync(application, target);
+        }
+        else
+        {
+            await MoveAsync(application, target);
+        }
     }
 
     /// <summary>Moves an application to a new status, from a drop or from the right-click menu.</summary>
@@ -182,6 +196,40 @@ else
             await LoadAsync();
         }
     }
+
+    /// <summary>Moves an application back to an earlier status, undoing the moves made after it.</summary>
+    private async Task MoveBackAsync(JobApplication application, ApplicationStatus target)
+    {
+        try
+        {
+            await ApplicationService.MoveBackAsync(application.Id, target);
+            Snackbar.Add($"Moved \"{application.RoleTitle}\" back to {target.ToDisplayText()}.", Severity.Success);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+            await LoadAsync();
+        }
+        catch (KeyNotFoundException)
+        {
+            Snackbar.Add("That application no longer exists.", Severity.Warning);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not move the application back: {ex.Message}", Severity.Error);
+            await LoadAsync();
+        }
+    }
+
+    /// <summary>True when the drop isn't a normal move but returns the card to a status it had earlier.</summary>
+    private static bool IsMoveBack(JobApplication application, ApplicationStatus target) =>
+        !ApplicationStatusRules.CanMove(application.Status, target, application.StageHistory.FurthestPipelineStatus())
+        && application.StageHistory.MoveBackTargets().Contains(target);
+
+    /// <summary>The status before the latest move, offered as "Move back to" in the right-click menu.</summary>
+    private static ApplicationStatus? PreviousStatus(JobApplication application) =>
+        application.StageHistory.MoveBackTargets() is { Count: > 0 } targets ? targets[0] : null;
 
     /// <summary>Whether the right-click menu should offer a move. Ghosted cards can always exit, so the simple check is enough.</summary>
     private static bool CanMoveTo(JobApplication application, ApplicationStatus target) =>
@@ -248,14 +296,4 @@ else
     /// <summary>Exit columns get a light grey background so the pipeline stands out.</summary>
     private static string ColumnBackground(BoardColumn column) =>
         column.IsExit ? "var(--mud-palette-background-gray)" : "var(--mud-palette-surface)";
-
-    /// <summary>Green for good news, red for endings, blue for interviews, grey for the rest.</summary>
-    private static Color StatusColor(ApplicationStatus status) => status switch
-    {
-        ApplicationStatus.Offer or ApplicationStatus.Accepted => Color.Success,
-        ApplicationStatus.Interview or ApplicationStatus.FinalRound => Color.Info,
-        ApplicationStatus.Rejected or ApplicationStatus.Ghosted => Color.Error,
-        ApplicationStatus.Withdrawn => Color.Warning,
-        _ => Color.Default
-    };
 }

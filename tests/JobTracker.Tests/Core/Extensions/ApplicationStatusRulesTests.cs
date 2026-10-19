@@ -101,4 +101,50 @@ public class ApplicationStatusRulesTests
     {
         Assert.That(new List<StageEvent>().FurthestPipelineStatus(), Is.EqualTo(ApplicationStatus.Wishlist));
     }
+
+    [Test]
+    public void MoveBackTargets_ListsEarlierStatusesMostRecentFirst()
+    {
+        List<StageEvent> history = History(ApplicationStatus.Applied, ApplicationStatus.Interview, ApplicationStatus.Offer);
+
+        Assert.That(history.MoveBackTargets(), Is.EqualTo(new[] { ApplicationStatus.Interview, ApplicationStatus.Applied }));
+    }
+
+    [Test]
+    public void MoveBackTargets_FromTerminalStatus_OffersTheStatusBefore()
+    {
+        List<StageEvent> history = History(ApplicationStatus.Applied, ApplicationStatus.Rejected);
+
+        Assert.That(history.MoveBackTargets(), Is.EqualTo(new[] { ApplicationStatus.Applied }));
+    }
+
+    [Test]
+    public void EventsUndoneByMovingBack_ReturnsEveryLaterMove()
+    {
+        List<StageEvent> history = History(ApplicationStatus.Applied, ApplicationStatus.Interview, ApplicationStatus.Offer);
+
+        IReadOnlyList<StageEvent> undone = history.EventsUndoneByMovingBack(ApplicationStatus.Applied);
+
+        Assert.That(undone.Select(stageEvent => stageEvent.ToStatus),
+            Is.EqualTo(new[] { ApplicationStatus.Interview, ApplicationStatus.Offer }));
+    }
+
+    [Test]
+    public void GetMoveBackError_StatusNeverReached_ExplainsWhy()
+    {
+        List<StageEvent> history = History(ApplicationStatus.Applied, ApplicationStatus.Interview);
+
+        Assert.That(ApplicationStatusRules.GetMoveBackError(history, ApplicationStatus.Assessment), Does.Contain("never"));
+        Assert.That(() => history.EventsUndoneByMovingBack(ApplicationStatus.Assessment), Throws.InvalidOperationException);
+    }
+
+    /// <summary>A history that visits the statuses in order, one day apart.</summary>
+    private static List<StageEvent> History(params ApplicationStatus[] statuses) =>
+        statuses.Select((status, index) => new StageEvent
+        {
+            Id = index + 1,
+            FromStatus = index == 0 ? null : statuses[index - 1],
+            ToStatus = status,
+            ChangedAt = new DateTime(2026, 9, 1).AddDays(index)
+        }).ToList();
 }

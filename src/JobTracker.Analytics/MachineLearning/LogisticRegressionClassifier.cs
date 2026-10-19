@@ -27,7 +27,7 @@ public class LogisticRegressionClassifier : IClassifier
     public string Name => "Logistic regression";
 
     /// <summary>The learned weight of each feature, in feature order.</summary>
-    public double[] Weights { get; private set; } = new double[0];
+    public double[] Weights { get; private set; } = Array.Empty<double>();
 
     /// <summary>The learned bias (log-odds when every feature is 0).</summary>
     public double Bias { get; private set; }

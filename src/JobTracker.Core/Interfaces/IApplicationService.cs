@@ -43,17 +43,14 @@ public interface IApplicationService
     /// <summary>Returns every company name in alphabetical order, for the company autocomplete in the form.</summary>
     Task<IReadOnlyList<string>> GetCompanyNamesAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Returns an application's status changes, oldest first, or an empty list.</summary>
-    Task<IReadOnlyList<StageEvent>> GetHistoryAsync(int applicationId, CancellationToken cancellationToken = default);
-
     /// <summary>
     /// Validates and saves a new application, writes its first StageEvent (from null to its Status)
-    /// and extracts skills from its job description.
+    /// for subsequent analytics and skill extraction.
     /// </summary>
     /// <param name="application">The new application. Its Status is the starting status.</param>
     /// <param name="companyName">
     /// The company typed or picked in the form. An existing company is matched by name, ignoring case;
-    /// otherwise a new company is created (ICompanyService.GetOrCreateAsync).
+    /// otherwise a new company is created in the same transaction.
     /// </param>
     /// <param name="cancellationToken">Cancels the save.</param>
     /// <returns>The saved application with its generated identifier.</returns>
@@ -80,6 +77,17 @@ public interface IApplicationService
     /// <exception cref="InvalidOperationException">The move breaks a status rule; the message explains why.</exception>
     /// <exception cref="KeyNotFoundException">No application has that Id.</exception>
     Task<StageEvent> ChangeStatusAsync(int applicationId, ApplicationStatus newStatus, string? note = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Moves an application back to a status it had earlier, to fix a mistaken move. The moves made after
+    /// that status are removed from the history. Moving back to Wishlist also clears the applied date.
+    /// </summary>
+    /// <param name="applicationId">The application to move.</param>
+    /// <param name="earlierStatus">A status from the application's history.</param>
+    /// <param name="cancellationToken">Cancels the save.</param>
+    /// <exception cref="InvalidOperationException">The application never had that status before.</exception>
+    /// <exception cref="KeyNotFoundException">No application has that Id.</exception>
+    Task MoveBackAsync(int applicationId, ApplicationStatus earlierStatus, CancellationToken cancellationToken = default);
 
     /// <summary>Deletes an application together with its stage history and its interviews.</summary>
     /// <exception cref="KeyNotFoundException">No application has that Id.</exception>

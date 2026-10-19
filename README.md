@@ -35,7 +35,8 @@ dotnet test
 | Analytics | Funnel, interview rates with confidence intervals, skill demand (TF-IDF), skill gap, model comparison, what-if predictor |
 | Interview Calendar | Month view, schedule and record interview outcomes, .ics export |
 | Companies | Company notes and per-company stats |
-| Profile & Data | Resume and skills profile, CSV/JSON import and export |
+| Import & export | CSV/JSON application import and export |
+| Profile | Resume upload, overview, skills and demo-data reset |
 
 ## Project structure
 ```

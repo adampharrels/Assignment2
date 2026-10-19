@@ -2,6 +2,7 @@ using JobTracker.Core.Analytics;
 using JobTracker.Data;
 using JobTracker.Data.Seed;
 using JobTracker.Data.Services;
+using JobTracker.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 
 namespace JobTracker.Tests.Data;

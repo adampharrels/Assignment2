@@ -1,4 +1,5 @@
 using JobTracker.Core.Analytics;
+using JobTracker.Core.Enums;
 
 namespace JobTracker.Data.Seed;
 
@@ -58,7 +59,7 @@ public class SeedApplication
     public IReadOnlyList<SeedStageEvent> History { get; init; } = Array.Empty<SeedStageEvent>();
 
     /// <summary>The current status: the last status in the history.</summary>
-    public SeedStatus Status => History.Count == 0 ? SeedStatus.Wishlist : History[^1].ToStatus;
+    public ApplicationStatus Status => History.Count == 0 ? ApplicationStatus.Wishlist : History[^1].ToStatus;
 
     /// <summary>The furthest pipeline stage ever reached, even if the application was later rejected.</summary>
     public PipelineStage HighestStage
@@ -82,10 +83,10 @@ public class SeedApplication
     /// <summary>How the application ended, or InProgress while it is still open.</summary>
     public ApplicationOutcome Outcome => Status switch
     {
-        SeedStatus.Accepted => ApplicationOutcome.Accepted,
-        SeedStatus.Rejected => ApplicationOutcome.Rejected,
-        SeedStatus.Withdrawn => ApplicationOutcome.Withdrawn,
-        SeedStatus.Ghosted => ApplicationOutcome.Ghosted,
+        ApplicationStatus.Accepted => ApplicationOutcome.Accepted,
+        ApplicationStatus.Rejected => ApplicationOutcome.Rejected,
+        ApplicationStatus.Withdrawn => ApplicationOutcome.Withdrawn,
+        ApplicationStatus.Ghosted => ApplicationOutcome.Ghosted,
         _ => ApplicationOutcome.InProgress
     };
 
@@ -99,9 +100,9 @@ public class SeedApplication
         {
             SeedStageEvent? reply = History.FirstOrDefault(stageEvent =>
                 stageEvent.FromStatus.HasValue
-                && stageEvent.FromStatus != SeedStatus.Wishlist
-                && stageEvent.ToStatus != SeedStatus.Ghosted
-                && stageEvent.ToStatus != SeedStatus.Withdrawn);
+                && stageEvent.FromStatus != ApplicationStatus.Wishlist
+                && stageEvent.ToStatus != ApplicationStatus.Ghosted
+                && stageEvent.ToStatus != ApplicationStatus.Withdrawn);
             return reply?.ChangedAt;
         }
     }
@@ -138,14 +139,14 @@ public class SeedApplication
     }
 
     /// <summary>The pipeline stage a status counts as, or null for statuses outside the pipeline.</summary>
-    private static PipelineStage? ToPipelineStage(SeedStatus status) => status switch
+    private static PipelineStage? ToPipelineStage(ApplicationStatus status) => status switch
     {
-        SeedStatus.Applied => PipelineStage.Applied,
-        SeedStatus.Assessment => PipelineStage.Assessment,
-        SeedStatus.Interview => PipelineStage.Interview,
-        SeedStatus.FinalRound => PipelineStage.FinalRound,
-        SeedStatus.Offer => PipelineStage.Offer,
-        SeedStatus.Accepted => PipelineStage.Offer,
+        ApplicationStatus.Applied => PipelineStage.Applied,
+        ApplicationStatus.Assessment => PipelineStage.Assessment,
+        ApplicationStatus.Interview => PipelineStage.Interview,
+        ApplicationStatus.FinalRound => PipelineStage.FinalRound,
+        ApplicationStatus.Offer => PipelineStage.Offer,
+        ApplicationStatus.Accepted => PipelineStage.Offer,
         _ => null
     };
 }

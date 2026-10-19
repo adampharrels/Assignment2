@@ -10,8 +10,8 @@ public class NaiveBayesClassifier : IClassifier
 {
     private double _logPriorYes;
     private double _logPriorNo;
-    private double[] _probabilityOnGivenYes = new double[0];
-    private double[] _probabilityOnGivenNo = new double[0];
+    private double[] _probabilityOnGivenYes = Array.Empty<double>();
+    private double[] _probabilityOnGivenNo = Array.Empty<double>();
 
     /// <inheritdoc />
     public string Name => "Naive Bayes";

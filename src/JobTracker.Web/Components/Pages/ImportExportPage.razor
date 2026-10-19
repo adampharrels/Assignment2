@@ -262,7 +262,7 @@
     {
         try
         {
-            await DownloadAsync(ImportExport.CreateTemplate(new CsvApplicationFormat()));
+            await DownloadAsync(ImportExportService.CreateTemplate(new CsvApplicationFormat()));
         }
         catch (Exception ex)
         {

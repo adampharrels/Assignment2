@@ -1,5 +1,5 @@
-using JobTracker.Analytics.Demo;
 using JobTracker.Core.Analytics;
+using JobTracker.Tests.Fixtures;
 
 namespace JobTracker.Tests.Analytics.Demo;
 

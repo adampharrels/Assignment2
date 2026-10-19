@@ -47,18 +47,6 @@ public class DashboardServiceTests
     }
 
     [Test]
-    public async Task DemoAdapter_UsesOnlyKnownSubmissionEvents()
-    {
-        var source = new ApplicationSource();
-        source.Records[0].HighestStage = PipelineStage.Offer;
-        var result = await new DemoDashboardApplicationSource(source).GetAsync();
-        Assert.That(result.IsDemo, Is.True);
-        Assert.That(result.AddApplicationUrl, Is.Null);
-        Assert.That(result.Changes.All(change => change.Stage == "Submitted"), Is.True);
-        Assert.That(result.Changes[0].ChangedAt, Is.EqualTo(source.Records[0].DateApplied));
-    }
-
-    [Test]
     public void Load_RejectsAmbiguousClock()
     {
         using var database = new TestDatabase();
@@ -73,7 +61,10 @@ public class DashboardServiceTests
     {
         public List<ApplicationRecord> Records { get; } = Enumerable.Range(1, 8).Select(id => new ApplicationRecord
         {
-            Id = id, CompanyName = "Company", RoleTitle = "Graduate", DateApplied = new DateTime(2026, 10, id)
+            Id = id,
+            CompanyName = "Company",
+            RoleTitle = "Graduate",
+            DateApplied = new DateTime(2026, 10, id)
         }).ToList();
 
         public Task<IReadOnlyList<ApplicationRecord>> GetApplicationsAsync(CancellationToken cancellationToken = default) =>

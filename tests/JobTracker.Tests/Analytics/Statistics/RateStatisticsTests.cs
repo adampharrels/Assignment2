@@ -82,6 +82,6 @@ public class RateStatisticsTests
     [Test]
     public void Median_Empty_ReturnsNull()
     {
-        Assert.That(RateStatistics.Median(new double[0]), Is.Null);
+        Assert.That(RateStatistics.Median(Array.Empty<double>()), Is.Null);
     }
 }

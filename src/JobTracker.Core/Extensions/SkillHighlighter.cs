@@ -16,10 +16,11 @@ public record TextSegment(string Text, string? Skill)
 /// the skills. Which words are skills is decided by the function passed in (the app uses Adam's skill
 /// extractor), so this class does not depend on the analytics project and is easy to test.
 /// </summary>
-public static class SkillHighlighter
+public static partial class SkillHighlighter
 {
     /// <summary>Splits text into words and the whitespace between them, keeping both.</summary>
-    private static readonly Regex WordsAndSpaces = new Regex(@"(\s+)", RegexOptions.Compiled);
+    [GeneratedRegex(@"(\s+)")]
+    private static partial Regex WordsAndSpaces();
 
     /// <summary>Punctuation that can stick to a word without being part of a skill name.</summary>
     private static readonly char[] Punctuation = { ',', '.', ';', ':', '!', '?', '(', ')', '"', '\'' };
@@ -38,7 +39,7 @@ public static class SkillHighlighter
         }
 
         // Even indexes are words, odd indexes are the whitespace between them.
-        string[] parts = WordsAndSpaces.Split(text);
+        string[] parts = WordsAndSpaces().Split(text);
         var plain = new System.Text.StringBuilder();
 
         for (int index = 0; index < parts.Length; index++)
