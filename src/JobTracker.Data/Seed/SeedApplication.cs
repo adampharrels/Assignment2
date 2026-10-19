@@ -4,9 +4,8 @@ using JobTracker.Core.Enums;
 namespace JobTracker.Data.Seed;
 
 /// <summary>
-/// One demo job application with its full stage history. Has the spec's JobApplication fields so
-/// the K2 application service can copy it into its own entity, and maps itself to an
-/// ApplicationRecord for the analytics in the meantime.
+/// One demo job application with its full stage history. SeedData copies it into a JobApplication
+/// entity when the demo data is saved; tests also map it straight to an ApplicationRecord.
 /// </summary>
 public class SeedApplication
 {

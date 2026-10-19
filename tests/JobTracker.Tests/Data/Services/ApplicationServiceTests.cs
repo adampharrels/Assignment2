@@ -4,7 +4,6 @@ using JobTracker.Core.Enums;
 using JobTracker.Core.Interfaces;
 using JobTracker.Data;
 using JobTracker.Data.Services;
-using JobTracker.Tests.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace JobTracker.Tests.Data.Services;

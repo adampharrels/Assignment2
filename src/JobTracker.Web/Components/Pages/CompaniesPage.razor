@@ -131,7 +131,7 @@ else
                 <MudTd DataLabel="Best stage">
                     @if (context.BestStage is ApplicationStatus best)
                     {
-                        <MudChip T="string" Size="Size.Small" Color="StageColor(best)" Variant="Variant.Text">@best.ToDisplayText()</MudChip>
+                        <MudChip T="string" Size="Size.Small" Color="ApplicationPresentation.StatusColor(best)" Variant="Variant.Text">@best.ToDisplayText()</MudChip>
                     }
                     else
                     {
@@ -196,7 +196,7 @@ else
                                                         <tr>
                                                             <td><MudLink Href="@($"/applications/{application.Id}")">@application.RoleTitle</MudLink></td>
                                                             <td>
-                                                                <MudChip T="string" Size="Size.Small" Color="StageColor(application.Status)" Variant="Variant.Text">
+                                                                <MudChip T="string" Size="Size.Small" Color="ApplicationPresentation.StatusColor(application.Status)" Variant="Variant.Text">
                                                                     @application.Status.ToDisplayText()
                                                                 </MudChip>
                                                             </td>
@@ -362,15 +362,4 @@ else
     /// <summary>Case-insensitive "contains" that treats null as no match.</summary>
     private static bool Contains(string? value, string text) =>
         value != null && value.Contains(text.Trim(), StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>Green for offers, blue for interviews, red for endings, grey for the rest.</summary>
-    private static Color StageColor(ApplicationStatus status) => status switch
-    {
-        ApplicationStatus.Offer or ApplicationStatus.Accepted => Color.Success,
-        ApplicationStatus.Interview or ApplicationStatus.FinalRound => Color.Info,
-        ApplicationStatus.Assessment => Color.Primary,
-        ApplicationStatus.Rejected or ApplicationStatus.Ghosted => Color.Error,
-        ApplicationStatus.Withdrawn => Color.Warning,
-        _ => Color.Default
-    };
 }

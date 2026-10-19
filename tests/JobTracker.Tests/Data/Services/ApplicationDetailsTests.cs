@@ -4,7 +4,6 @@ using JobTracker.Core.Enums;
 using JobTracker.Core.Extensions;
 using JobTracker.Data;
 using JobTracker.Data.Services;
-using JobTracker.Tests.Data;
 
 namespace JobTracker.Tests.Data.Services;
 

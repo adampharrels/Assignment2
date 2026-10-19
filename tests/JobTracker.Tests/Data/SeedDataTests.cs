@@ -4,7 +4,6 @@ using JobTracker.Core.Entities;
 using JobTracker.Core.Enums;
 using JobTracker.Data;
 using JobTracker.Data.Seed;
-using JobTracker.Tests.Data;
 using JobTracker.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 

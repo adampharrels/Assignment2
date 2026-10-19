@@ -19,9 +19,6 @@ public class TfIdfVectorizer
     /// <summary>Number of documents the vectorizer was fitted on.</summary>
     public int DocumentCount { get; private set; }
 
-    /// <summary>Every term seen during fitting.</summary>
-    public IReadOnlyCollection<string> Vocabulary => _documentFrequency.Keys;
-
     /// <summary>Learns document frequencies from already-tokenised documents. Replaces any earlier fit.</summary>
     public void Fit(IEnumerable<IReadOnlyList<string>> documents)
     {
