@@ -13,14 +13,18 @@ public class DemoDataService
 {
     private readonly IDbContextFactory<JobTrackerDbContext> _contextFactory;
     private readonly ResumeFileStore? _resumeFiles;
+    private readonly bool _includeDemoApplications;
 
     /// <summary>Creates the service.</summary>
     /// <param name="contextFactory">Creates a short-lived database context per call.</param>
     /// <param name="resumeFiles">Where the uploaded resume is kept, so a reset removes it too; null to leave files alone.</param>
-    public DemoDataService(IDbContextFactory<JobTrackerDbContext> contextFactory, ResumeFileStore? resumeFiles = null)
+    /// <param name="includeDemoApplications">Also restores the demo applications, as the app does on first run.</param>
+    public DemoDataService(IDbContextFactory<JobTrackerDbContext> contextFactory, ResumeFileStore? resumeFiles = null,
+        bool includeDemoApplications = false)
     {
         _contextFactory = contextFactory;
         _resumeFiles = resumeFiles;
+        _includeDemoApplications = includeDemoApplications;
     }
 
     /// <summary>
@@ -45,7 +49,7 @@ public class DemoDataService
         }
 
         // Every table is empty now, so the initializer adds the same data as on first run.
-        await DatabaseInitializer.InitializeAsync(_contextFactory);
+        await DatabaseInitializer.InitializeAsync(_contextFactory, _includeDemoApplications);
         _resumeFiles?.Delete();
     }
 }

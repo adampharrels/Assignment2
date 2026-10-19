@@ -7,7 +7,7 @@ using JobTracker.Data.Services;
 using JobTracker.Tests.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace JobTracker.Tests.G4;
+namespace JobTracker.Tests.Data.Services;
 
 [TestFixture]
 public class CompanyServiceTests
