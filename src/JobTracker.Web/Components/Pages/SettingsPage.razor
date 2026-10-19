@@ -1,0 +1,352 @@
+@page "/settings"
+@* Owner: Grace (G6). The user's profile (name, target role, resume) and "my skills", which make the fit
+   scores and skill gaps on the analytics and details pages personal; plus resetting the demo data. *@
+@using System.ComponentModel.DataAnnotations
+@using JobTracker.Analytics.Text
+@using JobTracker.Core.Entities
+@using JobTracker.Core.Enums
+@using JobTracker.Data.Services
+@inject IProfileService ProfileService
+@inject ISkillExtractor SkillExtractor
+@inject DemoDataService DemoData
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Profile</PageTitle>
+
+<div class="mb-4">
+    <MudText Typo="Typo.h4">Profile</MudText>
+    <MudText Typo="Typo.body2">Describe yourself so fit scores and skill gaps are about you.</MudText>
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_error != null)
+{
+    <MudAlert Severity="Severity.Error">
+        @_error
+        <MudButton Variant="Variant.Text" Size="Size.Small" Class="ml-2" OnClick="LoadAsync">Try again</MudButton>
+    </MudAlert>
+}
+else
+{
+    @if (_resetDone)
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="() => _resetDone = false">
+            The demo data has been restored.
+        </MudAlert>
+    }
+
+    <MudGrid Spacing="3">
+        @* ---------- Profile ---------- *@
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <div class="d-flex align-center justify-space-between mb-2">
+                    <MudText Typo="Typo.h6">About you</MudText>
+                    @if (IsDirty)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Unsaved changes</MudChip>
+                    }
+                </div>
+
+                <EditForm Model="_form" OnValidSubmit="SaveProfileAsync">
+                    <DataAnnotationsValidator />
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Name *" @bind-Value="_form.FullName" For="@(() => _form.FullName)" Immediate="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Target role" @bind-Value="_form.TargetRole" For="@(() => _form.TargetRole)" Immediate="true"
+                                          Placeholder="e.g. Graduate Software Engineer" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField Label="Resume" @bind-Value="_form.ResumeText" For="@(() => _form.ResumeText)" Lines="12"
+                                          Immediate="true" DebounceInterval="400"
+                                          HelperText="@($"Paste the text of your resume. It is compared with each job description. {_form.ResumeText.Length:N0} / {ProfileForm.MaxResumeLength:N0} characters")" />
+                        </MudItem>
+                    </MudGrid>
+
+                    @if (string.IsNullOrWhiteSpace(_form.ResumeText))
+                    {
+                        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3">
+                            Without a resume, fit scores can only use the skills you tick.
+                        </MudAlert>
+                    }
+
+                    <div class="d-flex justify-end gap-2 mt-4">
+                        <MudButton Variant="Variant.Text" OnClick="UndoChanges" Disabled="@(!IsDirty || _saving)">Undo changes</MudButton>
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!IsDirty || _saving)">
+                            @(_saving ? "Saving…" : "Save profile")
+                        </MudButton>
+                    </div>
+                </EditForm>
+            </MudPaper>
+        </MudItem>
+
+        @* ---------- My skills ---------- *@
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6">My skills</MudText>
+                @if (_skills.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mt-2">There are no skills to choose from. Reset the demo data below to restore the skill list.</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="mb-3">
+                        Click a skill to add it to your profile or remove it. You have @_skills.Count(skill => skill.InMyProfile) of @_skills.Count.
+                    </MudText>
+
+                    @if (Suggestions.Count > 0)
+                    {
+                        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3" NoIcon="true">
+                            <div class="d-flex flex-wrap align-center gap-2">
+                                <span>Your resume mentions <b>@string.Join(", ", Suggestions.Select(skill => skill.Name))</b>, which you haven't ticked.</span>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info" OnClick="AddSuggestionsAsync"
+                                           Disabled="_busySkills.Count > 0">Add @(Suggestions.Count == 1 ? "it" : "them")</MudButton>
+                            </div>
+                        </MudAlert>
+                    }
+
+                    @foreach (IGrouping<SkillCategory, Skill> group in _skills.GroupBy(skill => skill.Category).OrderBy(group => group.Key))
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mt-2">@CategoryText(group.Key)</MudText>
+                        <div class="d-flex flex-wrap gap-1">
+                            @foreach (Skill skill in group.OrderBy(skill => skill.Name))
+                            {
+                                <MudChip T="string" Value="@skill.Name"
+                                         Color="@(skill.InMyProfile ? Color.Primary : Color.Default)"
+                                         Variant="@(skill.InMyProfile ? Variant.Filled : Variant.Outlined)"
+                                         Icon="@(skill.InMyProfile ? Icons.Material.Filled.Check : Icons.Material.Filled.Add)"
+                                         Disabled="_busySkills.Contains(skill.Id)"
+                                         OnClick="() => ToggleSkillAsync(skill)">@skill.Name</MudChip>
+                            }
+                        </div>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+
+        @* ---------- Reset ---------- *@
+        <MudItem xs="12">
+            <MudPaper Class="pa-4" Elevation="0" Outlined="true" Style="border-color:var(--mud-palette-error)">
+                <div class="d-flex flex-wrap align-center justify-space-between gap-3">
+                    <div>
+                        <MudText Typo="Typo.h6">Reset demo data</MudText>
+                        <MudText Typo="Typo.body2">
+                            Deletes everything you have added or changed (applications, companies, interviews, your profile and skills)
+                            and restores the demo data. This can't be undone; download a JSON backup first if you want to keep anything.
+                        </MudText>
+                    </div>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.RestartAlt"
+                               OnClick="ResetAsync" Disabled="_resetting">
+                        @(_resetting ? "Resetting…" : "Reset demo data")
+                    </MudButton>
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    /// <summary>Set to true (?reset=true) after a reset reloads the page, to show the success message.</summary>
+    [SupplyParameterFromQuery(Name = "reset")]
+    public bool ResetJustDone { get; set; }
+
+    private ProfileForm _form = new ProfileForm();
+    private UserProfile _saved = new UserProfile();
+    private List<Skill> _skills = new List<Skill>();
+    private readonly HashSet<int> _busySkills = new HashSet<int>();
+    private bool _loading = true;
+    private bool _saving;
+    private bool _resetting;
+    private bool _resetDone;
+    private string? _error;
+
+    /// <summary>True when the form differs from what is saved.</summary>
+    private bool IsDirty =>
+        _form.FullName.Trim() != _saved.FullName
+        || (string.IsNullOrWhiteSpace(_form.TargetRole) ? null : _form.TargetRole.Trim()) != _saved.TargetRole
+        || _form.ResumeText.Trim() != _saved.ResumeText;
+
+    /// <summary>Skills the resume text mentions that the user hasn't ticked, using Adam's skill extractor.</summary>
+    private IReadOnlyList<Skill> Suggestions
+    {
+        get
+        {
+            var mentioned = SkillExtractor.Extract(_form.ResumeText).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return _skills.Where(skill => !skill.InMyProfile && mentioned.Contains(skill.Name)).OrderBy(skill => skill.Name).ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _resetDone = ResetJustDone;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _error = null;
+            _saved = await ProfileService.GetProfileAsync();
+            _form = ProfileForm.From(_saved);
+            _skills = (await ProfileService.GetSkillsAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load your profile: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>Runs after the field rules pass. The service validates again before saving.</summary>
+    private async Task SaveProfileAsync()
+    {
+        _saving = true;
+        try
+        {
+            UserProfile profile = _form.ApplyTo(_saved);
+            await ProfileService.SaveProfileAsync(profile);
+            _saved = await ProfileService.GetProfileAsync();
+            _form = ProfileForm.From(_saved);
+            Snackbar.Add("Profile saved.", Severity.Success);
+        }
+        catch (ValidationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not save: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void UndoChanges() => _form = ProfileForm.From(_saved);
+
+    /// <summary>Adds or removes one skill. The chip changes straight away and changes back if the save fails.</summary>
+    private async Task ToggleSkillAsync(Skill skill)
+    {
+        if (!_busySkills.Add(skill.Id))
+        {
+            return;
+        }
+
+        bool wanted = !skill.InMyProfile;
+        skill.InMyProfile = wanted;
+        try
+        {
+            await ProfileService.SetInProfileAsync(skill.Id, wanted);
+        }
+        catch (KeyNotFoundException)
+        {
+            Snackbar.Add($"\"{skill.Name}\" no longer exists. Reloading the list.", Severity.Warning);
+            _skills = (await ProfileService.GetSkillsAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            skill.InMyProfile = !wanted;
+            Snackbar.Add($"Could not update \"{skill.Name}\": {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _busySkills.Remove(skill.Id);
+        }
+    }
+
+    private async Task AddSuggestionsAsync()
+    {
+        IReadOnlyList<Skill> suggestions = Suggestions;
+        foreach (Skill skill in suggestions)
+        {
+            await ToggleSkillAsync(skill);
+        }
+
+        Snackbar.Add($"Added {string.Join(", ", suggestions.Select(skill => skill.Name))}.", Severity.Success);
+    }
+
+    /// <summary>Asks first, then resets and reloads the whole app so every page shows the restored data.</summary>
+    private async Task ResetAsync()
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Reset demo data?",
+            "Everything you have added or changed (applications, companies, interviews, your profile and skills) will be deleted "
+                + "and the demo data restored. This can't be undone.",
+            yesText: "Reset",
+            cancelText: "Cancel");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        _resetting = true;
+        try
+        {
+            await DemoData.ResetAsync();
+            Navigation.NavigateTo("/settings?reset=true", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not reset the demo data: {ex.Message}", Severity.Error);
+            _resetting = false;
+        }
+    }
+
+    /// <summary>The category as a heading, e.g. "Cloud & DevOps".</summary>
+    private static string CategoryText(SkillCategory category) => category switch
+    {
+        SkillCategory.Language => "Languages",
+        SkillCategory.Framework => "Frameworks",
+        SkillCategory.Data => "Data",
+        SkillCategory.Cloud => "Cloud & DevOps",
+        SkillCategory.Practice => "Tools & practices",
+        SkillCategory.Soft => "Soft skills",
+        _ => "Other"
+    };
+
+    /// <summary>The profile form's fields and their rules. Kept apart from UserProfile so the entity (K1) is unchanged.</summary>
+    private sealed class ProfileForm
+    {
+        /// <summary>The longest resume accepted: about ten pages of text.</summary>
+        public const int MaxResumeLength = 20_000;
+
+        [Required(ErrorMessage = "Name is required.")]
+        [StringLength(100, ErrorMessage = "Name can't be longer than 100 characters.")]
+        public string FullName { get; set; } = string.Empty;
+
+        [StringLength(100, ErrorMessage = "Target role can't be longer than 100 characters.")]
+        public string? TargetRole { get; set; }
+
+        [StringLength(MaxResumeLength, ErrorMessage = "The resume can't be longer than 20,000 characters.")]
+        public string ResumeText { get; set; } = string.Empty;
+
+        public static ProfileForm From(UserProfile profile) => new ProfileForm
+        {
+            FullName = profile.FullName,
+            TargetRole = profile.TargetRole,
+            ResumeText = profile.ResumeText
+        };
+
+        /// <summary>A copy of the saved profile with this form's trimmed values.</summary>
+        public UserProfile ApplyTo(UserProfile saved) => new UserProfile
+        {
+            Id = saved.Id,
+            FullName = FullName.Trim(),
+            TargetRole = string.IsNullOrWhiteSpace(TargetRole) ? null : TargetRole.Trim(),
+            ResumeText = ResumeText.Trim()
+        };
+    }
+}

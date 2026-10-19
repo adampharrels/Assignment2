@@ -31,6 +31,7 @@ builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();            //
 // G2: replace the demo adapter when S1 provides totals, history and its creation route.
 builder.Services.AddScoped<IDashboardApplicationSource, DemoDashboardApplicationSource>();
 builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<DemoDataService>();                                   // G6 (Grace)
 
 var app = builder.Build();
 
