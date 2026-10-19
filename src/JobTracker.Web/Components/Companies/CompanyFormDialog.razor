@@ -1,0 +1,158 @@
+@* Owner: Grace (G4). Add or edit a company. The same dialog is used for both: pass CompanyId to edit. *@
+@using System.ComponentModel.DataAnnotations
+@using JobTracker.Core.Entities
+@using JobTracker.Core.Enums
+@inject ICompanyService CompanyService
+
+<MudDialog>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+        }
+        else
+        {
+            <EditForm Model="_model" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+
+                @if (_error != null)
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-3" ShowCloseIcon="true" CloseIconClicked="() => _error = null">@_error</MudAlert>
+                }
+
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Name *" @bind-Value="_model.Name" For="@(() => _model.Name)"
+                                      Error="_nameError != null" ErrorText="@_nameError" OnBlur="() => _nameError = null" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Industry" @bind-Value="_model.Industry" For="@(() => _model.Industry)"
+                                      Placeholder="e.g. Software or Banking" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="4">
+                        <MudSelect T="CompanySize" Label="Size" @bind-Value="_model.Size">
+                            @foreach (CompanySize size in Enum.GetValues<CompanySize>())
+                            {
+                                <MudSelectItem Value="size">@SizeText(size)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="8">
+                        <MudTextField Label="Website" @bind-Value="_model.Website" For="@(() => _model.Website)"
+                                      Placeholder="https://www.example.com" InputType="InputType.Url" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField Label="Notes" @bind-Value="_model.Notes" Lines="4"
+                                      HelperText="Culture, contacts, what they look for, when grad intakes open…" />
+                    </MudItem>
+                </MudGrid>
+
+                <div class="d-flex justify-end gap-2 mt-4">
+                    <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="_saving">Cancel</MudButton>
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving">
+                        @(_saving ? "Saving…" : IsNew ? "Add company" : "Save changes")
+                    </MudButton>
+                </div>
+            </EditForm>
+        }
+    </DialogContent>
+</MudDialog>
+
+@code {
+    /// <summary>The company to edit, or null to add a new one.</summary>
+    [Parameter]
+    public int? CompanyId { get; set; }
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private Company _model = new Company();
+    private string? _nameError;
+    private string? _error;
+    private bool _loading = true;
+    private bool _saving;
+
+    private bool IsNew => CompanyId is null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (!IsNew)
+            {
+                Company? existing = await CompanyService.GetByIdAsync(CompanyId!.Value);
+                if (existing == null)
+                {
+                    _error = "This company no longer exists.";
+                }
+                else
+                {
+                    _model = existing;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load the form: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>Runs after the field rules pass. The service checks everything again, including that the name is unique.</summary>
+    private async Task SaveAsync()
+    {
+        _error = null;
+        _nameError = null;
+        _saving = true;
+        try
+        {
+            if (IsNew)
+            {
+                Company created = await CompanyService.CreateAsync(_model);
+                MudDialog.Close(DialogResult.Ok(created.Id));
+            }
+            else
+            {
+                await CompanyService.UpdateAsync(_model);
+                MudDialog.Close(DialogResult.Ok(_model.Id));
+            }
+        }
+        catch (ValidationException ex) when (ex.ValidationResult.MemberNames.Contains(nameof(Company.Name)))
+        {
+            // A duplicate name is shown under the name field rather than at the top.
+            _nameError = ex.ValidationResult.ErrorMessage;
+        }
+        catch (ValidationException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (KeyNotFoundException)
+        {
+            _error = "This company was deleted, so it can't be saved.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not save: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    /// <summary>The size with its employee band, e.g. "Medium (50–249)".</summary>
+    internal static string SizeText(CompanySize size) => size switch
+    {
+        CompanySize.Small => "Small (1–49)",
+        CompanySize.Medium => "Medium (50–249)",
+        CompanySize.Large => "Large (250+)",
+        _ => "Unknown"
+    };
+}

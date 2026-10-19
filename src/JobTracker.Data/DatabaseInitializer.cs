@@ -8,7 +8,12 @@ namespace JobTracker.Data;
 public static class DatabaseInitializer
 {
     /// <summary>Creates the schema if needed, then seeds the profile, skills and G1 demo data when they are empty.</summary>
-    public static async Task InitializeAsync(IDbContextFactory<JobTrackerDbContext> contextFactory)
+    /// <param name="contextFactory">Creates the context used for seeding.</param>
+    /// <param name="includeDemoApplications">
+    /// Also adds the G1 demo applications. The app passes true; tests leave it off so they can add and
+    /// count applications of their own.
+    /// </param>
+    public static async Task InitializeAsync(IDbContextFactory<JobTrackerDbContext> contextFactory, bool includeDemoApplications = false)
     {
         await using JobTrackerDbContext context = await contextFactory.CreateDbContextAsync();
         await context.Database.EnsureCreatedAsync();
@@ -31,6 +36,11 @@ public static class DatabaseInitializer
         }
 
         await SeedData.AddDemoDataAsync(context);
+        if (includeDemoApplications)
+        {
+            await SeedData.AddDemoApplicationsAsync(context);
+        }
+
         await context.SaveChangesAsync();
     }
 

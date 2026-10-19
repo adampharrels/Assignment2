@@ -3,8 +3,9 @@ using JobTracker.Analytics;
 using JobTracker.Analytics.Text;
 using JobTracker.Core.Interfaces;
 using JobTracker.Data;
-using JobTracker.Data.Seed;
+using JobTracker.Data.Profile;
 using JobTracker.Data.Services;
+using JobTracker.Web;
 using JobTracker.Web.Components;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
@@ -21,20 +22,30 @@ builder.Services.AddDbContextFactory<JobTrackerDbContext>(options => options.Use
 
 // Services (owner in brackets). Add your registration here, or ask Adam to.
 builder.Services.AddScoped<IProfileService, ProfileService>();                 // K1 (Adam)
-builder.Services.AddScoped<IApplicationService, ApplicationService>();         // K2/S1 (Sarah)
-// TODO (K2, Sarah): ApplicationService also implements IApplicationDataSource. Swap the line below to it once
-// the seed applications are saved to the database, so every screen reads the same data.
-builder.Services.AddSingleton<IApplicationDataSource, SeedApplicationDataSource>(); // G1 (Grace)
+// One ApplicationService per circuit serves both the screens and the analytics, so every screen reads
+// the same applications from the database.
+builder.Services.AddScoped<ApplicationService>();                                // K2/S1 (Sarah)
+builder.Services.AddScoped<IApplicationService>(services => services.GetRequiredService<ApplicationService>());
+builder.Services.AddScoped<IApplicationDataSource>(services => services.GetRequiredService<ApplicationService>());
+builder.Services.AddScoped<ICompanyService, CompanyService>();                 // K3/G4 (Grace)
 builder.Services.AddSingleton<ISkillExtractor, DictionarySkillExtractor>();      // A3 (Adam)
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();            // A1-A5 (Adam)
 
+builder.Services.AddScoped<IInterviewService, InterviewService>();           // G3 (Grace)
 // G2: replace the demo adapter when S1 provides totals, history and its creation route.
 builder.Services.AddScoped<IDashboardApplicationSource, DemoDashboardApplicationSource>();
 builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<ImportExportService>();                               // G5 (Grace)
+builder.Services.AddScoped(services => new DemoDataService(                     // G6 (Grace)
+    services.GetRequiredService<IDbContextFactory<JobTrackerDbContext>>(),
+    services.GetRequiredService<ResumeFileStore>(),
+    includeDemoApplications: true));
+builder.Services.AddSingleton(new ResumeFileStore(Path.Combine(builder.Environment.ContentRootPath, "App_Data", "resume"))); // G6 (Grace)
 
 var app = builder.Build();
 
-await DatabaseInitializer.InitializeAsync(app.Services.GetRequiredService<IDbContextFactory<JobTrackerDbContext>>());
+await DatabaseInitializer.InitializeAsync(app.Services.GetRequiredService<IDbContextFactory<JobTrackerDbContext>>(),
+    includeDemoApplications: true);
 
 if (!app.Environment.IsDevelopment())
 {
@@ -43,6 +54,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseAntiforgery();
 app.MapStaticAssets();
+app.MapResumeFile();                                                             // G6 (Grace)
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();

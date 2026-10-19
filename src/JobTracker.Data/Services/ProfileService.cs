@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using JobTracker.Core.Entities;
+using JobTracker.Core.Enums;
 using JobTracker.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -75,5 +76,39 @@ public class ProfileService : IProfileService
 
         skill.InMyProfile = inProfile;
         await context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<Skill> AddSkillAsync(string name, SkillCategory category, CancellationToken cancellationToken = default)
+    {
+        // Skill names are stored in lower case, like the skill extractor's canonical names (e.g. "c#", "react").
+        var skill = new Skill
+        {
+            Name = name?.Trim().ToLowerInvariant() ?? string.Empty,
+            Category = category,
+            InMyProfile = true
+        };
+
+        if (skill.Name.Length == 0)
+        {
+            throw new ValidationException("Enter a skill name.");
+        }
+
+        if (skill.Name.Length > 60)
+        {
+            throw new ValidationException("Skill names can't be longer than 60 characters.");
+        }
+
+        Validator.ValidateObject(skill, new ValidationContext(skill), validateAllProperties: true);
+
+        await using JobTrackerDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        if (await context.Skills.AnyAsync(item => item.Name.ToLower() == skill.Name, cancellationToken))
+        {
+            throw new ValidationException($"\"{skill.Name}\" is already in your skill list.");
+        }
+
+        context.Skills.Add(skill);
+        await context.SaveChangesAsync(cancellationToken);
+        return skill;
     }
 }

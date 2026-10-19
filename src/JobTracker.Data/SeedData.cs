@@ -1,5 +1,6 @@
 using JobTracker.Core.Entities;
 using JobTracker.Core.Enums;
+using JobTracker.Core.Extensions;
 using JobTracker.Data.Seed;
 using Microsoft.EntityFrameworkCore;
 using S = JobTracker.Data.Seed.SeedStatus;
@@ -15,9 +16,7 @@ namespace JobTracker.Data;
 /// Patterns are built in so the analytics have something to find: referrals and tailored resumes
 /// usually lead to interviews, roles that match the demo user's skills (.NET, React, SQL, Python)
 /// do better than cloud, security and Java roles, and Seek applications rarely hear back.
-/// Applications cannot be stored yet because the application entity is K2's. Until then they reach
-/// the analytics through SeedApplicationDataSource, and the seeded interviews refer to them by Id.
-/// TODO (K2, Sarah): save CreateApplications() (keeping the Ids) and their histories before the interviews.
+/// The applications are saved with their original Ids, because the seeded interviews refer to them by Id.
 /// </remarks>
 public static class SeedData
 {
@@ -173,6 +172,92 @@ public static class SeedData
             new Company { Name = "Xero", Industry = "Software", Size = CompanySize.Large, Website = "https://www.xero.com" }
         };
         return companies;
+    }
+
+    /// <summary>
+    /// Adds the demo applications, with their stage history, when the applications table is empty.
+    /// Call it after AddDemoDataAsync, in the same context; the caller saves.
+    /// </summary>
+    /// <remarks>
+    /// Kept separate from AddDemoDataAsync because tests create applications of their own and count them,
+    /// so only the app (and the "Reset demo data" button) turns the demo applications on.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The context is null.</exception>
+    public static async Task AddDemoApplicationsAsync(JobTrackerDbContext context, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        if (await context.Applications.AnyAsync(cancellationToken))
+        {
+            return;
+        }
+
+        // Companies added by AddDemoDataAsync have no Id until the caller saves, so load the saved ones
+        // next to them and link each application through its Company navigation instead.
+        await context.Companies.LoadAsync(cancellationToken);
+        var companiesByName = context.Companies.Local.ToDictionary(company => company.Name, StringComparer.OrdinalIgnoreCase);
+
+        foreach (SeedApplication seed in CreateApplications())
+        {
+            // A demo company the user deleted is added again.
+            if (!companiesByName.TryGetValue(seed.CompanyName, out Company? company))
+            {
+                company = new Company { Name = seed.CompanyName };
+                companiesByName.Add(company.Name, company);
+            }
+
+            context.Applications.Add(ToEntity(seed, company));
+        }
+    }
+
+    /// <summary>
+    /// Turns one seed application into the stored entity with its stage history. The Id is kept because
+    /// the seeded interviews refer to it.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The seed uses a source or work mode the entity has no value for.</exception>
+    public static JobApplication ToEntity(SeedApplication seed, Company company)
+    {
+        ArgumentNullException.ThrowIfNull(seed);
+        ArgumentNullException.ThrowIfNull(company);
+
+        if (!ApplicationEnumExtensions.TryParseSource(seed.Source, out ApplicationSource source))
+        {
+            throw new InvalidOperationException($"Seed application {seed.Id} has an unknown source \"{seed.Source}\".");
+        }
+
+        if (!ApplicationEnumExtensions.TryParseWorkMode(seed.WorkMode, out WorkMode workMode))
+        {
+            throw new InvalidOperationException($"Seed application {seed.Id} has an unknown work mode \"{seed.WorkMode}\".");
+        }
+
+        return new JobApplication
+        {
+            Id = seed.Id,
+            Company = company,
+            RoleTitle = seed.RoleTitle,
+            Location = seed.Location,
+            WorkMode = workMode,
+            Source = source,
+            // SeedStatus mirrors ApplicationStatus value for value, so the cast is safe.
+            Status = (ApplicationStatus)seed.Status,
+            SalaryMin = seed.SalaryMin,
+            SalaryMax = seed.SalaryMax,
+            JobDescription = seed.JobDescription,
+            DatePosted = seed.DatePosted,
+            DateApplied = seed.DateApplied,
+            HadReferral = seed.HadReferral,
+            TailoredResume = seed.TailoredResume,
+            WroteCoverLetter = seed.WroteCoverLetter,
+            Notes = seed.Notes,
+            StageHistory = seed.History
+                .Select(stageEvent => new StageEvent
+                {
+                    FromStatus = (ApplicationStatus?)stageEvent.FromStatus,
+                    ToStatus = (ApplicationStatus)stageEvent.ToStatus,
+                    ChangedAt = stageEvent.ChangedAt
+                })
+                .ToList()
+        };
     }
 
     /// <summary>Returns the 56 submitted applications (Ids 1-56) and 3 wishlist items (Ids 57-59).</summary>
