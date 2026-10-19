@@ -26,6 +26,8 @@ builder.Services.AddSingleton<IApplicationDataSource, DemoApplicationDataSource>
 builder.Services.AddSingleton<ISkillExtractor, DictionarySkillExtractor>();      // A3 (Adam)
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();            // A1-A5 (Adam)
 
+builder.Services.AddScoped<IInterviewService, InterviewService>();           // G3 (Grace)
+
 var app = builder.Build();
 
 await DatabaseInitializer.InitializeAsync(app.Services.GetRequiredService<IDbContextFactory<JobTrackerDbContext>>());
