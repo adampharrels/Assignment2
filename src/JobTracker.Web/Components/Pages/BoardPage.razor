@@ -197,9 +197,29 @@ else
         }
     }
 
-    /// <summary>Moves an application back to an earlier status, undoing the moves made after it.</summary>
+    /// <summary>
+    /// Moves an application back to an earlier status, undoing the moves made after it. Asks first, because
+    /// the undone moves are deleted from the history for good.
+    /// </summary>
     private async Task MoveBackAsync(JobApplication application, ApplicationStatus target)
     {
+        string undone = string.Join(", ", application.StageHistory
+            .EventsUndoneByMovingBack(target)
+            .Select(stageEvent => stageEvent.ToStatus.ToDisplayText()));
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Move back",
+            $"Move \"{application.RoleTitle}\" at {application.Company?.Name} back to {target.ToDisplayText()}? "
+                + $"This removes {undone} from its history, and the analytics stop counting it. This can't be undone.",
+            yesText: "Move back",
+            cancelText: "Cancel");
+
+        if (confirmed != true)
+        {
+            // A dropped card is already showing in the new column, so put it back.
+            await LoadAsync();
+            return;
+        }
+
         try
         {
             await ApplicationService.MoveBackAsync(application.Id, target);
