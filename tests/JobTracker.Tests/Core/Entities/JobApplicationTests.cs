@@ -4,7 +4,7 @@ using JobTracker.Core.Entities;
 using JobTracker.Core.Enums;
 using JobTracker.Core.Extensions;
 
-namespace JobTracker.Tests.K2;
+namespace JobTracker.Tests.Core.Entities;
 
 [TestFixture]
 public class JobApplicationTests

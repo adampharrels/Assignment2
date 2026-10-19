@@ -7,7 +7,7 @@ using JobTracker.Data.Seed;
 using JobTracker.Tests.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace JobTracker.Tests.G1;
+namespace JobTracker.Tests.Data;
 
 [TestFixture]
 public class SeedDataTests

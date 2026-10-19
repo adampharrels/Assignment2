@@ -93,7 +93,7 @@ These are the places where work touches:
 | C6 | Import creates applications | Grace → Sarah | Import is scheduled late (Phase 2) and reuses Sarah's add-application method. |
 | C7 | Skill extraction when an application is saved | Sarah → Adam | Agree the method at kickoff. Until it's ready, it does nothing. |
 | C8 | ML needs realistic data | Adam → Grace | G1 is Grace's first task. Until it lands, Adam tests with small hand-made datasets in unit tests. |
-| C9 | Test project | Everyone | One test file per slice, and never edit someone else's test file. |
+| C9 | Test project | Everyone | Put each test file in the folder that mirrors the code it tests (e.g. tests for `src/JobTracker.Data/Services/` go in `tests/JobTracker.Tests/Data/Services/`), with a matching namespace. Never edit someone else's test file. |
 
 **Waiting on someone? Use a fake.** Write a small class that implements the agreed interface and
 returns hard-coded data. Your screen works today, and when the real service is merged you switch

@@ -4,7 +4,7 @@ using JobTracker.Data;
 using JobTracker.Tests.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace JobTracker.Tests.K2;
+namespace JobTracker.Tests.Data;
 
 [TestFixture]
 public class ApplicationSchemaTests
