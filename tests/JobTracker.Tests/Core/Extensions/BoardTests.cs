@@ -5,7 +5,7 @@ using JobTracker.Data;
 using JobTracker.Data.Services;
 using JobTracker.Tests.Data;
 
-namespace JobTracker.Tests.S3;
+namespace JobTracker.Tests.Core.Extensions;
 
 [TestFixture]
 public class BoardTests

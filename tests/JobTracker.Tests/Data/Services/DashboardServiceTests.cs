@@ -8,7 +8,7 @@ using JobTracker.Core.Interfaces;
 using JobTracker.Data.Services;
 using JobTracker.Tests.Data;
 
-namespace JobTracker.Tests.G2;
+namespace JobTracker.Tests.Data.Services;
 
 [TestFixture]
 public class DashboardServiceTests

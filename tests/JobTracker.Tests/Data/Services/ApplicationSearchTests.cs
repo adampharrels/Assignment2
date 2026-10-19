@@ -5,7 +5,7 @@ using JobTracker.Data;
 using JobTracker.Data.Services;
 using JobTracker.Tests.Data;
 
-namespace JobTracker.Tests.S2;
+namespace JobTracker.Tests.Data.Services;
 
 [TestFixture]
 public class ApplicationSearchTests
