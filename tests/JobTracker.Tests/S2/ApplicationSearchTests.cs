@@ -3,7 +3,7 @@ using JobTracker.Core.Enums;
 using JobTracker.Core.Interfaces;
 using JobTracker.Data;
 using JobTracker.Data.Services;
-using JobTracker.Tests.K1;
+using JobTracker.Tests.Data;
 
 namespace JobTracker.Tests.S2;
 
