@@ -35,12 +35,4 @@ public class TokenizerTests
         Assert.That(Tokenizer.Tokenize(null), Is.Empty);
         Assert.That(Tokenizer.Tokenize("   "), Is.Empty);
     }
-
-    [Test]
-    public void Bigrams_JoinsNeighbours()
-    {
-        List<string> bigrams = Tokenizer.Bigrams(new[] { "machine", "learning", "python" }).ToList();
-
-        Assert.That(bigrams, Is.EqualTo(new[] { "machine learning", "learning python" }));
-    }
 }

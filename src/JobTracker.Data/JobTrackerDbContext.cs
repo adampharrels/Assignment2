@@ -53,7 +53,7 @@ public class JobTrackerDbContext : DbContext
             entity.Property(interview => interview.Outcome).HasConversion<string>();
         });
 
-        // K2 (Sarah). Interviews are not linked by a foreign key yet: the seed data adds interviews
+        // Interviews are validated and deleted by services rather than a foreign key because seeding adds them
         // before applications are saved. The application service deletes them itself (see DeleteAsync).
         modelBuilder.Entity<JobApplication>(entity =>
         {

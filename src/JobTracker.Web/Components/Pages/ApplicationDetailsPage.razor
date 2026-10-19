@@ -9,7 +9,8 @@
 @implements IDisposable
 @inject IApplicationService ApplicationService
 @inject ISkillExtractor SkillExtractor
-@inject IServiceProvider Services
+@inject IInterviewService InterviewService
+@using JobTracker.Core.Calendar
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
@@ -43,7 +44,7 @@ else
             <MudText Typo="Typo.h4">@_application.RoleTitle</MudText>
             <MudText Typo="Typo.h6" Class="mud-text-secondary">@_application.Company?.Name</MudText>
             <div class="d-flex flex-wrap align-center gap-2 mt-2">
-                <MudChip T="string" Color="StatusColor(_application.Status)" Variant="Variant.Filled" Size="Size.Small">@_application.Status.ToDisplayText()</MudChip>
+                <MudChip T="string" Color="ApplicationPresentation.StatusColor(_application.Status)" Variant="Variant.Filled" Size="Size.Small">@_application.Status.ToDisplayText()</MudChip>
                 @if (_application.HadReferral)
                 {
                     <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success">Referral</MudChip>
@@ -135,13 +136,7 @@ else
 
             <MudPaper Class="pa-4 mb-4" Elevation="1">
                 <MudText Typo="Typo.h6" GutterBottom="true">Interviews</MudText>
-                @if (!_interviewsAvailable)
-                {
-                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
-                        Interviews will show here once the interview calendar is added.
-                    </MudText>
-                }
-                else if (_interviews.Count == 0)
+                @if (_interviews.Count == 0)
                 {
                     <MudText Typo="Typo.body2" Class="mud-text-secondary">No interviews scheduled for this application.</MudText>
                 }
@@ -153,7 +148,7 @@ else
                             @foreach (Interview interview in _interviews)
                             {
                                 <tr>
-                                    <td>@interview.ScheduledAt.ToLocalTime().ToString("ddd d MMM, h:mm tt")</td>
+                                    <td>@SydneyTime.FromUtc(interview.ScheduledAt).ToString("ddd d MMM, h:mm tt")</td>
                                     <td>@interview.Type.ToDisplayText()</td>
                                     <td>@interview.DurationMinutes min</td>
                                     <td>@(interview.LocationOrLink ?? "–")</td>
@@ -179,7 +174,7 @@ else
                     <MudTimeline TimelinePosition="TimelinePosition.Start" Reverse="true">
                         @foreach (StageEvent stageEvent in _application.StageHistory)
                         {
-                            <MudTimelineItem Color="StatusColor(stageEvent.ToStatus)" Size="Size.Small">
+                            <MudTimelineItem Color="ApplicationPresentation.StatusColor(stageEvent.ToStatus)" Size="Size.Small">
                                 <ItemContent>
                                     <MudText Typo="Typo.body1">@stageEvent.ToStatus.ToDisplayText()</MudText>
                                     <MudText Typo="Typo.caption" Class="mud-text-secondary">
@@ -220,7 +215,6 @@ else
     private IReadOnlyList<string> _skills = Array.Empty<string>();
     private IReadOnlyList<ApplicationStatus> _allowedMoves = Array.Empty<ApplicationStatus>();
     private IReadOnlyList<Interview> _interviews = Array.Empty<Interview>();
-    private bool _interviewsAvailable;
     private bool _loading = true;
     private string? _error;
 
@@ -260,7 +254,7 @@ else
                 .FurthestPipelineStatus();
             _allowedMoves = ApplicationStatusRules.AllowedTargets(_application.Status, furthest);
 
-            await LoadInterviewsAsync();
+            _interviews = await InterviewService.GetByApplicationAsync(Id);
         }
         catch (Exception ex)
         {
@@ -270,19 +264,6 @@ else
         {
             _loading = false;
         }
-    }
-
-    /// <summary>
-    /// Grace's interview service (G3) may not be registered yet. Until it is, the section shows a note
-    /// instead of failing, so this page works on its own.
-    /// </summary>
-    private async Task LoadInterviewsAsync()
-    {
-        var interviewService = Services.GetService(typeof(IInterviewService)) as IInterviewService;
-        _interviewsAvailable = interviewService != null;
-        _interviews = interviewService == null
-            ? Array.Empty<Interview>()
-            : await interviewService.GetByApplicationAsync(Id);
     }
 
     private async Task MoveAsync(ApplicationStatus target)
@@ -364,14 +345,5 @@ else
         (decimal min, _) => $"${min:N0}",
         (null, decimal max) => $"${max:N0}",
         _ => "Not stated"
-    };
-
-    private static Color StatusColor(ApplicationStatus status) => status switch
-    {
-        ApplicationStatus.Offer or ApplicationStatus.Accepted => Color.Success,
-        ApplicationStatus.Interview or ApplicationStatus.FinalRound => Color.Info,
-        ApplicationStatus.Rejected or ApplicationStatus.Ghosted => Color.Error,
-        ApplicationStatus.Withdrawn => Color.Warning,
-        _ => Color.Default
     };
 }

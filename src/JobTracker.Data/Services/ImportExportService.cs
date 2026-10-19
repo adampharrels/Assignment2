@@ -51,7 +51,7 @@ public class ImportExportService
 
     /// <summary>An empty file with only the headings, to fill in by hand.</summary>
     /// <param name="format">The format to write.</param>
-    public ExportFile CreateTemplate(ApplicationFileFormat format)
+    public static ExportFile CreateTemplate(ApplicationFileFormat format)
     {
         ArgumentNullException.ThrowIfNull(format);
         return new ExportFile($"job-applications-template{format.FileExtension}", format.ContentType,

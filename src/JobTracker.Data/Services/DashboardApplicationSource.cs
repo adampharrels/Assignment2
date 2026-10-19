@@ -12,9 +12,6 @@ namespace JobTracker.Data.Services;
 /// </summary>
 public sealed class DashboardApplicationSource(IDbContextFactory<JobTrackerDbContext> factory) : IDashboardApplicationSource
 {
-    /// <summary>Opens the applications page with the add form already showing.</summary>
-    public const string AddApplicationUrl = "/applications?add=true";
-
     /// <inheritdoc />
     public async Task<DashboardApplications> GetAsync(CancellationToken cancellationToken = default)
     {
@@ -37,7 +34,7 @@ public sealed class DashboardApplicationSource(IDbContextFactory<JobTrackerDbCon
             .Select(item => new StageChange(item.ApplicationId, item.Company, item.RoleTitle,
                 Describe(item.FromStatus, item.ToStatus), item.ChangedAt))
             .ToList();
-        return new DashboardApplications(total, changes, IsDemo: false, AddApplicationUrl);
+        return new DashboardApplications(total, changes);
     }
 
     /// <summary>"Applied", "Saved to wishlist" or "Moved to Interview".</summary>

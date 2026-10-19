@@ -3,7 +3,7 @@ using JobTracker.Core.Enums;
 using JobTracker.Core.Extensions;
 using JobTracker.Data.Seed;
 using Microsoft.EntityFrameworkCore;
-using S = JobTracker.Data.Seed.SeedStatus;
+using S = JobTracker.Core.Enums.ApplicationStatus;
 
 namespace JobTracker.Data;
 
@@ -238,8 +238,7 @@ public static class SeedData
             Location = seed.Location,
             WorkMode = workMode,
             Source = source,
-            // SeedStatus mirrors ApplicationStatus value for value, so the cast is safe.
-            Status = (ApplicationStatus)seed.Status,
+            Status = seed.Status,
             SalaryMin = seed.SalaryMin,
             SalaryMax = seed.SalaryMax,
             JobDescription = seed.JobDescription,
@@ -252,8 +251,8 @@ public static class SeedData
             StageHistory = seed.History
                 .Select(stageEvent => new StageEvent
                 {
-                    FromStatus = (ApplicationStatus?)stageEvent.FromStatus,
-                    ToStatus = (ApplicationStatus)stageEvent.ToStatus,
+                    FromStatus = stageEvent.FromStatus,
+                    ToStatus = stageEvent.ToStatus,
                     ChangedAt = stageEvent.ChangedAt
                 })
                 .ToList()
@@ -375,10 +374,10 @@ public static class SeedData
     /// <summary>Builds a submitted application; each step is a status and the days after applying it happened.</summary>
     private static SeedApplication Applied(int id, string company, Role role, string location, string workMode, string source,
         int? salaryMinThousands, int? salaryMaxThousands, DateTime posted, DateTime applied, Tactics tactics,
-        params (SeedStatus Status, int Day)[] steps)
+        params (ApplicationStatus Status, int Day)[] steps)
     {
-        var history = new List<SeedStageEvent> { new SeedStageEvent { ToStatus = SeedStatus.Applied, ChangedAt = applied } };
-        foreach ((SeedStatus status, int day) in steps)
+        var history = new List<SeedStageEvent> { new SeedStageEvent { ToStatus = ApplicationStatus.Applied, ChangedAt = applied } };
+        foreach ((ApplicationStatus status, int day) in steps)
         {
             history.Add(new SeedStageEvent { FromStatus = history[^1].ToStatus, ToStatus = status, ChangedAt = applied.AddDays(day) });
         }
@@ -390,7 +389,7 @@ public static class SeedData
     private static SeedApplication Wishlist(int id, string company, Role role, string location, string workMode, string source,
         int? salaryMinThousands, int? salaryMaxThousands, DateTime posted, DateTime saved)
     {
-        var history = new List<SeedStageEvent> { new SeedStageEvent { ToStatus = SeedStatus.Wishlist, ChangedAt = saved } };
+        var history = new List<SeedStageEvent> { new SeedStageEvent { ToStatus = ApplicationStatus.Wishlist, ChangedAt = saved } };
         return Build(id, company, role, location, workMode, source, salaryMinThousands, salaryMaxThousands, posted, null, Tactics.None, history);
     }
 

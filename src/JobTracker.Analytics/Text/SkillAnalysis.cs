@@ -98,15 +98,6 @@ public class SkillAnalysis
             .ToList();
     }
 
-    /// <summary>Skills the job asks for, split into ones the user has and ones they are missing.</summary>
-    public (List<string> Matched, List<string> Missing) CompareWithProfile(IEnumerable<string> jobSkills)
-    {
-        List<string> distinct = jobSkills.Distinct().ToList();
-        List<string> matched = distinct.Where(skill => _profileSkills.Contains(skill)).ToList();
-        List<string> missing = distinct.Where(skill => !_profileSkills.Contains(skill)).ToList();
-        return (matched, missing);
-    }
-
     private static string DescribeGap(SkillDemand demand, GroupRate rate, double overallRate)
     {
         string share = $"Asked for in {TextFormat.Percent(demand.DocumentShare)} of your jobs ({demand.DocumentCount}).";

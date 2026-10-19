@@ -37,8 +37,16 @@ public class CalendarTests
     {
         var start = new DateTime(2026, 10, 19, 1, 30, 0, DateTimeKind.Utc);
         var notes = string.Concat(Enumerable.Repeat("面接🙂", 40)) + ", next; line\nEND:VEVENT\n\\";
-        var item = new Interview { Id = 42, ApplicationId = 1, ScheduledAt = start, DurationMinutes = 45,
-            Outcome = InterviewOutcome.Cancelled, PrepNotes = notes, LocationOrLink = "Sydney, NSW; office" };
+        var item = new Interview
+        {
+            Id = 42,
+            ApplicationId = 1,
+            ScheduledAt = start,
+            DurationMinutes = 45,
+            Outcome = InterviewOutcome.Cancelled,
+            PrepNotes = notes,
+            LocationOrLink = "Sydney, NSW; office"
+        };
         var export = InterviewCalendarExport.Create(new[] { item }, _ => "Company · Role", start);
         var unfolded = export.Replace("\r\n ", "");
         Assert.That(unfolded, Does.Contain("UID:interview-42@grad-job-tracker.local\r\n"));

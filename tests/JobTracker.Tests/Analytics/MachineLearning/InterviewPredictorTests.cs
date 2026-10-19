@@ -1,7 +1,7 @@
-using JobTracker.Analytics.Demo;
 using JobTracker.Analytics.MachineLearning;
 using JobTracker.Analytics.Text;
 using JobTracker.Core.Analytics;
+using JobTracker.Tests.Fixtures;
 
 namespace JobTracker.Tests.Analytics.MachineLearning;
 

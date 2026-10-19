@@ -114,7 +114,7 @@ public class ImportExportServiceTests
     public void CreateTemplate_ParsesAsAFileWithNoApplications()
     {
         var csv = new CsvApplicationFormat();
-        ExportFile template = _service.CreateTemplate(csv);
+        ExportFile template = ImportExportService.CreateTemplate(csv);
 
         Assert.That(template.FileName, Is.EqualTo("job-applications-template.csv"));
         Assert.That(csv.Parse(template.Content).FileError, Does.Contain("no applications"));

@@ -1,7 +1,6 @@
 using JobTracker.Core.Entities;
 using JobTracker.Core.Enums;
 using JobTracker.Data;
-using JobTracker.Tests.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace JobTracker.Tests.Data;

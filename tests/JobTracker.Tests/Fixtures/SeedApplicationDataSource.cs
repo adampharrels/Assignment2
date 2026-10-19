@@ -1,13 +1,10 @@
 using JobTracker.Core.Analytics;
 using JobTracker.Core.Interfaces;
+using JobTracker.Data;
 
-namespace JobTracker.Data.Seed;
+namespace JobTracker.Tests.Fixtures;
 
-/// <summary>
-/// Gives the analytics the G1 seed applications while the application entity (K2) does not exist.
-/// Wishlist items are left out because they were never submitted.
-/// </summary>
-/// <remarks>Remove the registration in Program.cs once the application service implements IApplicationDataSource.</remarks>
+/// <summary>Supplies submitted seed records for tests without accessing the database.</summary>
 public class SeedApplicationDataSource : IApplicationDataSource
 {
     private static readonly IReadOnlyList<ApplicationRecord> Records = SeedData.CreateApplications()

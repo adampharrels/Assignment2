@@ -20,7 +20,6 @@ builder.Services.AddApexCharts();
 string connectionString = builder.Configuration.GetConnectionString("JobTracker") ?? "Data Source=jobtracker.db";
 builder.Services.AddDbContextFactory<JobTrackerDbContext>(options => options.UseSqlite(connectionString));
 
-// Services (owner in brackets). Add your registration here, or ask Adam to.
 builder.Services.AddScoped<IProfileService, ProfileService>();                 // K1 (Adam)
 // One ApplicationService per circuit serves both the screens and the analytics, so every screen reads
 // the same applications from the database.

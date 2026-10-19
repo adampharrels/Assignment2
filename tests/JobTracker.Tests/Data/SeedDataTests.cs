@@ -4,7 +4,7 @@ using JobTracker.Core.Entities;
 using JobTracker.Core.Enums;
 using JobTracker.Data;
 using JobTracker.Data.Seed;
-using JobTracker.Tests.Data;
+using JobTracker.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 
 namespace JobTracker.Tests.Data;
@@ -62,7 +62,7 @@ public class SeedDataTests
         Assert.That(records.Any(r => r.Outcome == ApplicationOutcome.Withdrawn), Is.True);
         Assert.That(records.Any(r => r.Outcome == ApplicationOutcome.Accepted), Is.True);
         Assert.That(records.Any(r => r.Outcome == ApplicationOutcome.InProgress), Is.True);
-        Assert.That(Submitted.Any(a => a.History.Any(e => e.FromStatus == SeedStatus.Ghosted)), Is.True, "A ghosted application revived");
+        Assert.That(Submitted.Any(a => a.History.Any(e => e.FromStatus == ApplicationStatus.Ghosted)), Is.True, "A ghosted application revived");
         Assert.That(records.Count(r => r.HadReferral), Is.GreaterThanOrEqualTo(5));
         Assert.That(records.Count(r => r.TailoredResume), Is.GreaterThanOrEqualTo(10));
         Assert.That(records.Count(r => r.WroteCoverLetter), Is.GreaterThanOrEqualTo(5));
@@ -106,7 +106,7 @@ public class SeedDataTests
         {
             SeedStageEvent first = application.History[0];
             Assert.That(first.FromStatus, Is.Null, $"Application {application.Id}");
-            Assert.That(first.ToStatus, Is.EqualTo(application.DateApplied.HasValue ? SeedStatus.Applied : SeedStatus.Wishlist), $"Application {application.Id}");
+            Assert.That(first.ToStatus, Is.EqualTo(application.DateApplied.HasValue ? ApplicationStatus.Applied : ApplicationStatus.Wishlist), $"Application {application.Id}");
             if (application.DateApplied.HasValue)
             {
                 Assert.That(first.ChangedAt, Is.EqualTo(application.DateApplied.Value), $"Application {application.Id}");
@@ -154,7 +154,7 @@ public class SeedDataTests
             Assert.That(interview.DurationMinutes, Is.InRange(5, 600));
             Assert.That(application!.HighestStage, Is.GreaterThanOrEqualTo(PipelineStage.Interview), $"Application {application.Id}");
 
-            DateTime invited = application.History.First(e => e.ToStatus == SeedStatus.Interview).ChangedAt;
+            DateTime invited = application.History.First(e => e.ToStatus == ApplicationStatus.Interview).ChangedAt;
             Assert.That(interview.ScheduledAt, Is.GreaterThan(invited), $"Application {application.Id}");
 
             if (interview.Outcome == InterviewOutcome.Pending)
@@ -183,7 +183,7 @@ public class SeedDataTests
     [Test]
     public void ToRecord_RejectsWishlistItems()
     {
-        SeedApplication wishlist = Applications.First(application => application.Status == SeedStatus.Wishlist);
+        SeedApplication wishlist = Applications.First(application => application.Status == ApplicationStatus.Wishlist);
 
         Assert.That(() => wishlist.ToRecord(), Throws.InvalidOperationException);
     }
@@ -193,10 +193,10 @@ public class SeedDataTests
     {
         var history = new List<SeedStageEvent>
         {
-            new SeedStageEvent { ToStatus = SeedStatus.Applied, ChangedAt = new DateTime(2026, 7, 1) },
-            new SeedStageEvent { FromStatus = SeedStatus.Applied, ToStatus = SeedStatus.Ghosted, ChangedAt = new DateTime(2026, 8, 1) },
-            new SeedStageEvent { FromStatus = SeedStatus.Ghosted, ToStatus = SeedStatus.Interview, ChangedAt = new DateTime(2026, 8, 10) },
-            new SeedStageEvent { FromStatus = SeedStatus.Interview, ToStatus = SeedStatus.Rejected, ChangedAt = new DateTime(2026, 8, 20) }
+            new SeedStageEvent { ToStatus = ApplicationStatus.Applied, ChangedAt = new DateTime(2026, 7, 1) },
+            new SeedStageEvent { FromStatus = ApplicationStatus.Applied, ToStatus = ApplicationStatus.Ghosted, ChangedAt = new DateTime(2026, 8, 1) },
+            new SeedStageEvent { FromStatus = ApplicationStatus.Ghosted, ToStatus = ApplicationStatus.Interview, ChangedAt = new DateTime(2026, 8, 10) },
+            new SeedStageEvent { FromStatus = ApplicationStatus.Interview, ToStatus = ApplicationStatus.Rejected, ChangedAt = new DateTime(2026, 8, 20) }
         };
         var application = new SeedApplication { Id = 1, DateApplied = new DateTime(2026, 7, 1), History = history };
 
@@ -242,21 +242,21 @@ public class SeedDataTests
     }
 
     /// <summary>The spec's status rules: forward-only pipeline, exits from any open status, ghosts can be revived.</summary>
-    private static bool IsLegalMove(SeedStatus from, SeedStatus to, IEnumerable<SeedStageEvent> earlier)
+    private static bool IsLegalMove(ApplicationStatus from, ApplicationStatus to, IEnumerable<SeedStageEvent> earlier)
     {
-        bool fromTerminal = from is SeedStatus.Accepted or SeedStatus.Rejected or SeedStatus.Withdrawn;
-        bool toExit = to is SeedStatus.Rejected or SeedStatus.Withdrawn or SeedStatus.Ghosted;
+        bool fromTerminal = from is ApplicationStatus.Accepted or ApplicationStatus.Rejected or ApplicationStatus.Withdrawn;
+        bool toExit = to is ApplicationStatus.Rejected or ApplicationStatus.Withdrawn or ApplicationStatus.Ghosted;
         if (fromTerminal)
         {
             return false;
         }
 
-        if (from == SeedStatus.Ghosted)
+        if (from == ApplicationStatus.Ghosted)
         {
-            SeedStatus beforeGhosting = earlier.Last(e => e.ToStatus != SeedStatus.Ghosted).ToStatus;
-            return to == SeedStatus.Rejected || (to <= SeedStatus.Accepted && to > beforeGhosting);
+            ApplicationStatus beforeGhosting = earlier.Last(e => e.ToStatus != ApplicationStatus.Ghosted).ToStatus;
+            return to == ApplicationStatus.Rejected || (to <= ApplicationStatus.Accepted && to > beforeGhosting);
         }
 
-        return toExit || (to <= SeedStatus.Accepted && to > from);
+        return toExit || (to <= ApplicationStatus.Accepted && to > from);
     }
 }

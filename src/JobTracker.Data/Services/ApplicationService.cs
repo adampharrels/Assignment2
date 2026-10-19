@@ -38,6 +38,7 @@ public class ApplicationService : IApplicationService, IApplicationDataSource
         List<JobApplication> applications = await context.Applications
             .AsNoTracking()
             .Include(application => application.Company)
+            .Include(application => application.StageHistory)
             .ToListAsync(cancellationToken);
 
         return NewestFirst(applications);
@@ -119,18 +120,6 @@ public class ApplicationService : IApplicationService, IApplicationDataSource
         await using JobTrackerDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         List<string> names = await context.Companies.AsNoTracking().Select(company => company.Name).ToListAsync(cancellationToken);
         return names.Order(StringComparer.OrdinalIgnoreCase).ToList();
-    }
-
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<StageEvent>> GetHistoryAsync(int applicationId, CancellationToken cancellationToken = default)
-    {
-        await using JobTrackerDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        List<StageEvent> history = await context.StageEvents
-            .AsNoTracking()
-            .Where(stageEvent => stageEvent.ApplicationId == applicationId)
-            .ToListAsync(cancellationToken);
-
-        return history.OrderBy(stageEvent => stageEvent.ChangedAt).ToList();
     }
 
     /// <inheritdoc />
@@ -240,13 +229,36 @@ public class ApplicationService : IApplicationService, IApplicationDataSource
     }
 
     /// <inheritdoc />
+    public async Task MoveBackAsync(int applicationId, ApplicationStatus earlierStatus, CancellationToken cancellationToken = default)
+    {
+        await using JobTrackerDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        JobApplication application = await context.Applications
+            .Include(item => item.StageHistory)
+            .FirstOrDefaultAsync(item => item.Id == applicationId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Application {applicationId} does not exist.");
+
+        IReadOnlyList<StageEvent> undone = application.StageHistory.EventsUndoneByMovingBack(earlierStatus);
+        context.StageEvents.RemoveRange(undone);
+        application.Status = earlierStatus;
+
+        // A wishlist item was never sent, so it has no applied date.
+        if (earlierStatus == ApplicationStatus.Wishlist)
+        {
+            application.DateApplied = null;
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+        OnApplicationsChanged(application.Id, ApplicationChangeKind.StatusChanged);
+    }
+
+    /// <inheritdoc />
     public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
         await using JobTrackerDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         JobApplication application = await context.Applications.FirstOrDefaultAsync(item => item.Id == id, cancellationToken)
             ?? throw new KeyNotFoundException($"Application {id} does not exist.");
 
-        // Interviews have no foreign key to applications yet (see JobTrackerDbContext), so remove them here.
+        // Interviews have no database foreign key (see JobTrackerDbContext), so remove them here.
         // The stage history is removed by the cascade delete.
         List<Interview> interviews = await context.Interviews.Where(interview => interview.ApplicationId == id).ToListAsync(cancellationToken);
         context.Interviews.RemoveRange(interviews);
@@ -293,6 +305,7 @@ public class ApplicationService : IApplicationService, IApplicationDataSource
         if (company == null)
         {
             company = new Company { Name = name };
+            Validator.ValidateObject(company, new ValidationContext(company), validateAllProperties: true);
             context.Companies.Add(company);
         }
 
